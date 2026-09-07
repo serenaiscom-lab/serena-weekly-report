@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>行銷數據與工作推進週報系統</title>
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel compiler -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      body { background-color: white !important; font-size: 11pt; }
+      .print-card { border: 1px solid #e5e7eb !important; box-shadow: none !important; }
+      .main-layout { display: block !important; }
+      @page { size: auto; margin: 15mm; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans antialiased selection:bg-blue-500 selection:text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // 格式化當前日期時間
+    const getFormattedDateTime = () => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    };
+
+    // 輔助函式：數值格式化
+    const formatDiffVal = (num) => {
+      if (Number.isInteger(num)) return num.toLocaleString();
+      return Number(num.toFixed(1)).toLocaleString();
+    };
+
+    // 觸發 PDF 匯出／列印
+    const handleExportPDF = () => {
+      window.print();
+    };
+
+    // 1. 全空白報表範本
+    const createTotallyBlankReport = () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const nowTime = getFormattedDateTime();
+      return {
+        id: `rep-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        weekCode: "全新空白週報",
+        startDate: today,
+        endDate: today,
+        author: "Serena",
+        status: "草稿",
+        createdTime: nowTime,
+        updatedTime: nowTime,
+        
+        summary: "",
+        keyWins: "",
+        decisionsNeed: "",
+        nextWeekP1: "",
+        aiExecutiveSummary: "",
+
+        workSections: [
+          {
+            id: `sec-${Date.now()}-1`,
+            title: "核心專案推進",
+            items: [
+              { id: `w-${Date.now()}-1`, title: "", status: "進行中", result: "", owner: "Serena" }
+            ]
+          }
+        ],
+
+        marketingMetrics: [
+          { id: `m-${Date.now()}-1`, category: "GA4 網站數據", name: "GA4 總使用者", val: 0, prev: 0, unit: "人", isInverted: false },
+          { id: `m-${Date.now()}-2`, category: "GSC 自然搜尋", name: "GSC 平均排名", val: 0, prev: 0, unit: "名", isInverted: true },
+          { id: `m-${Date.now()}-3`, category: "FB 社群經營", name: "FB 觸及數", val: 0, prev: 0, unit: "次", isInverted: false }
+        ]
+      };
+    };
+
+    // 2. 預設範例報表
+    const createDefaultDemoReport = () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const nowTime = getFormattedDateTime();
+      return {
+        id: `rep-demo-01`,
+        weekCode: "2026年 9月 W1",
+        startDate: "2026-09-01",
+        endDate: "2026-09-07",
+        author: "Serena",
+        status: "已發布",
+        createdTime: "2026-09-01 09:00",
+        updatedTime: nowTime,
+        
+        summary: "本週順利完成官網落地頁優化與社群活動上線，整體專案進度正常推進。",
+        keyWins: "1. 完成 GA4 與 GSC 數據串接機制\n2. 官網新版落地頁上線，轉換率提升 1.2%",
+        decisionsNeed: "1. 需主管審核下期 FB 廣告預算追加案 ($20,000)\n2. 需跨部門確認 10 月新產品文案視覺風格",
+        nextWeekP1: "1. 啟動 SEO 關鍵字文章第二階段優化\n2. 追蹤 FB 社群私訊導流轉換率\n3. 準備 Q4 行銷戰略提案",
+        aiExecutiveSummary: "",
+
+        workSections: [
+          {
+            id: "sec-1",
+            title: "官網改版與 SEO 優化專案",
+            items: [
+              { id: "w-1", title: "官網 Landing Page 產品頁面文案與 UI 調整", status: "已完成", result: "完成上線並佈署 GA4 事件追蹤", owner: "Serena" },
+              { id: "w-2", title: "GSC 高曝光低 CTR 文章標題重寫", status: "進行中", result: "已完成 5 篇核心文章優化，待觀察排名變化", owner: "Sarah" }
+            ]
+          },
+          {
+            id: "sec-2",
+            title: "社群經營與廣告投放",
+            items: [
+              { id: "w-3", title: "FB 粉絲專頁雙週曝光與互動分析", status: "延遲排解", result: "因權限問題 delay，已聯繫 IT 部門處理中", owner: "Mark" }
+            ]
+          }
+        ],
+
+        marketingMetrics: [
+          { id: "m-1", category: "GA4 網站數據", name: "GA4 總數使用者", val: 12500, prev: 11000, unit: "人", isInverted: false },
+          { id: "m-2", category: "GA4 網站數據", name: "GA4 新使用者", val: 8200, prev: 7500, unit: "人", isInverted: false },
+          { id: "m-3", category: "GA4 網站數據", name: "官網轉換名單數", val: 320, prev: 280, unit: "筆", isInverted: false },
+          { id: "m-4", category: "GA4 網站數據", name: "官網名單轉換率", val: 2.56, prev: 2.25, unit: "%", isInverted: false },
+          { id: "m-5", category: "GSC 自然搜尋", name: "GSC 自然搜尋點擊", val: 4500, prev: 4100, unit: "次", isInverted: false },
+          { id: "m-6", category: "GSC 自然搜尋", name: "GSC 總曝光次數", val: 98000, prev: 85000, unit: "次", isInverted: false },
+          { id: "m-7", category: "GSC 自然搜尋", name: "GSC 平均點擊率 (CTR)", val: 4.59, prev: 4.82, unit: "%", isInverted: false },
+          { id: "m-8", category: "GSC 自然搜尋", name: "GSC 平均排名", val: 12.3, prev: 14.1, unit: "名", isInverted: true },
+          { id: "m-9", category: "FB 社群經營", name: "FB 社群總觸及數", val: 35000, prev: 42000, unit: "次", isInverted: false },
+          { id: "m-10", category: "FB 社群經營", name: "FB 貼文互動次數", val: 2800, prev: 2500, unit: "次", isInverted: false },
+          { id: "m-11", category: "FB 社群經營", name: "FB 私訊與留單諮詢", val: 45, prev: 38, unit: "筆", isInverted: false }
+        ]
+      };
+    };
+
+    // 🎴 數據卡片組件
+    function MetricCard({ metric, compact = false }) {
+      const { name, val, prev, unit, isInverted } = metric;
+      const diff = val - prev;
+      const absDiff = Math.abs(diff);
+      const pct = prev !== 0 ? ((diff / prev) * 100).toFixed(1) : 0;
+      const isZero = diff === 0;
+
+      let isGood = isInverted ? diff < 0 : diff > 0;
+
+      let badgeBg = '';
+      if (isZero) {
+        badgeBg = 'bg-slate-100 text-slate-600 border-slate-200';
+      } else if (isInverted) {
+        badgeBg = isGood 
+          ? 'bg-rose-50 text-rose-700 border-rose-200'  
+          : 'bg-emerald-50 text-emerald-700 border-emerald-200'; 
+      } else {
+        badgeBg = isGood 
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+          : 'bg-rose-50 text-rose-700 border-rose-200';  
+      }
+
+      let displayBadgeText = '';
+      if (isZero) {
+        displayBadgeText = '▬ 持平';
+      } else if (isInverted) {
+        const rankDiffText = formatDiffVal(absDiff);
+        displayBadgeText = diff < 0 
+          ? `▲ 上升 ${rankDiffText} 名` 
+          : `▼ 下降 ${rankDiffText} 名`;
+      } else {
+        displayBadgeText = `${diff > 0 ? '▲' : '▼'} ${Math.abs(pct)}%`;
+      }
+
+      const formattedDiffStr = diff > 0 ? `+${formatDiffVal(diff)}` : formatDiffVal(diff);
+
+      if (compact) {
+        return (
+          <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-1">
+            <div class="text-[11px] text-slate-500 font-medium truncate">{name}</div>
+            <div class="flex items-baseline justify-between gap-1 flex-wrap">
+              <span class="text-base font-black text-slate-800">
+                {val.toLocaleString()} <span class="text-[10px] font-normal text-slate-400">{unit}</span>
+              </span>
+              <span class={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${badgeBg}`}>
+                {displayBadgeText}
+              </span>
+            </div>
+            <div class="text-[10px] text-slate-400 flex justify-between pt-1 border-t">
+              <span>上週: {prev.toLocaleString()}</span>
+              <span>差額: {formattedDiffStr}</span>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition space-y-3">
+          <div class="flex justify-between items-start gap-2">
+            <span class="text-xs font-bold text-slate-700 truncate">{name}</span>
+            <span class={`text-[11px] font-extrabold px-2 py-0.5 rounded-full border shrink-0 ${badgeBg}`}>
+              {displayBadgeText}
+            </span>
+          </div>
+
+          <div class="flex items-baseline justify-between">
+            <div>
+              <span class="text-2xl font-black text-slate-900 tracking-tight">{val.toLocaleString()}</span>
+              <span class="text-xs font-medium text-slate-500 ml-1">{unit}</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+            <div>
+              上週數據：<span class="font-bold text-slate-700">{prev.toLocaleString()} {unit}</span>
+            </div>
+            <div>
+              週變化：
+              <span class={`font-bold ${badgeBg.includes('rose') ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {formattedDiffStr} {isInverted && absDiff !== 0 ? '名' : ''}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ⚡ 綜合大綱摘要卡片
+    function ExecutiveSummaryCard({ summaryText, onUpdateSummary, onRegenerate }) {
+      const [isEditing, setIsEditing] = useState(false);
+      const [tempText, setTempText] = useState(summaryText || "");
+
+      useEffect(() => {
+        setTempText(summaryText || "");
+      }, [summaryText]);
+
+      if (!summaryText && !isEditing) return null;
+
+      const handleSave = () => {
+        onUpdateSummary(tempText);
+        setIsEditing(false);
+      };
+
+      const handleDelete = () => {
+        if (window.confirm("❓ 確定要刪除這份大綱摘要嗎？")) {
+          onUpdateSummary("");
+          setIsEditing(false);
+        }
+      };
+
+      return (
+        <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-3 shadow-sm">
+          <div class="flex justify-between items-center no-print flex-wrap gap-2">
+            <h3 class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+              <span>⚡</span> 綜合大綱摘要 (Executive Summary)
+              <span class="text-[10px] font-normal text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">可人工編輯</span>
+            </h3>
+            
+            <div class="flex items-center space-x-1.5">
+              {isEditing ? (
+                <>
+                  <button onClick={() => setIsEditing(false)} class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-2.5 py-1 rounded transition">取消</button>
+                  <button onClick={handleSave} class="text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1 rounded shadow-sm transition">💾 儲存摘要</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={onRegenerate} class="text-xs bg-amber-200/80 hover:bg-amber-300 text-amber-900 font-bold px-2 py-1 rounded transition flex items-center gap-1">🔄 重新整理</button>
+                  <button onClick={() => setIsEditing(true)} class="text-xs bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold px-2 py-1 rounded transition flex items-center gap-1">✏️ 編輯</button>
+                  <button onClick={handleDelete} class="text-xs bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-2 py-1 rounded transition flex items-center gap-1 border border-rose-200">🗑️ 刪除</button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {isEditing ? (
+            <textarea 
+              rows="7" 
+              class="w-full text-xs font-sans p-3 rounded-lg border border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white leading-relaxed text-slate-800"
+              value={tempText}
+              onChange={(e) => setTempText(e.target.value)}
+            ></textarea>
+          ) : (
+            <pre class="text-xs text-amber-950 font-sans whitespace-pre-wrap leading-relaxed">{summaryText}</pre>
+          )}
+        </div>
+      );
+    }
+
+    // 🏷️ 狀態 Badge
+    function StatusBadge({ status }) {
+      if (status === "已完成") {
+        return (
+          <span class="inline-flex items-center gap-1 bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> ✓ 已完成
+          </span>
+        );
+      }
+      if (status === "延遲排解") {
+        return (
+          <span class="inline-flex items-center gap-1 bg-rose-100 text-rose-800 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-rose-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> ⚠️ 延遲排解
+          </span>
+        );
+      }
+      return (
+        <span class="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-emerald-300">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> ⏳ 進行中
+        </span>
+      );
+    }
+
+    // 🔔 獨立全域右側通知提醒側邊欄 (Right Sidebar)
+    function RightReminderSidebar({ reminders, setReminders }) {
+      const [type, setType] = useState("待辦事項");
+      const [title, setTitle] = useState("");
+      
+      const getNowDateTimeString = () => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      };
+
+      const [dateTime, setDateTime] = useState(getNowDateTimeString());
+      const [priority, setPriority] = useState("中");
+      const [note, setNote] = useState("");
+      const [timeFilter, setTimeFilter] = useState("all");
+
+      const handleAdd = (e) => {
+        e.preventDefault();
+        if (!title.trim()) {
+          alert("請輸入事項名稱！");
+          return;
+        }
+        const newRem = {
+          id: `rem-${Date.now()}`,
+          type,
+          title,
+          dateTime: dateTime || getNowDateTimeString(),
+          priority,
+          status: "未完成",
+          note
+        };
+        setReminders([newRem, ...reminders]);
+        setTitle("");
+        setDateTime(getNowDateTimeString());
+        setNote("");
+      };
+
+      const toggleStatus = (id) => {
+        setReminders(reminders.map(r => r.id === id ? { ...r, status: r.status === '已完成' ? '未完成' : '已完成' } : r));
+      };
+
+      const deleteReminder = (id) => {
+        if (window.confirm("❓ 確定要刪除這筆提醒嗎？")) {
+          setReminders(reminders.filter(r => r.id !== id));
+        }
+      };
+
+      const filterByTime = (itemDateTimeStr) => {
+        if (timeFilter === "all" || !itemDateTimeStr) return true;
+        const itemDateStr = itemDateTimeStr.split("T")[0];
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        if (timeFilter === "today") return itemDateStr === todayStr;
+        if (timeFilter === "month") {
+          const itemDate = new Date(itemDateStr);
+          return itemDate.getFullYear() === now.getFullYear() && itemDate.getMonth() === now.getMonth();
+        }
+        return true;
+      };
+
+      const filteredReminders = useMemo(() => {
+        return reminders.filter(r => filterByTime(r.dateTime));
+      }, [reminders, timeFilter]);
+
+      const pendingList = filteredReminders.filter(r => r.status !== "已完成");
+      const completedList = filteredReminders.filter(r => r.status === "已完成");
+
+      return (
+        <aside class="w-full lg:w-80 bg-white border-l border-slate-200 p-4 space-y-5 no-print shrink-0 shadow-sm rounded-xl lg:rounded-none">
+          <div class="flex items-center justify-between border-b pb-3">
+            <h2 class="text-sm font-black text-slate-800 flex items-center gap-1.5">
+              <span>🔔</span> 獨立通知提醒 (全域同步)
+            </h2>
+            <span class="bg-rose-100 text-rose-700 font-bold text-[10px] px-2 py-0.5 rounded-full">
+              未完成 {pendingList.length}
+            </span>
+          </div>
+
+          {/* 時間篩選 */}
+          <div class="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-lg border border-slate-200">
+            <span class="font-bold text-slate-600">📅 篩選：</span>
+            <select 
+              class="text-xs font-bold border border-slate-300 p-1 rounded bg-white outline-none focus:ring-1 focus:ring-rose-500 text-slate-800"
+              value={timeFilter}
+              onChange={e => setTimeFilter(e.target.value)}
+            >
+              <option value="all">全部事項</option>
+              <option value="today">本日事項</option>
+              <option value="month">本月事項</option>
+            </select>
+          </div>
+
+          {/* 快速新增提醒 */}
+          <form onSubmit={handleAdd} class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2.5">
+            <div class="text-[11px] font-bold text-slate-700 flex justify-between">
+              <span>➕ 新增獨立事項</span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2">
+              <select class="text-xs border p-1.5 rounded bg-white" value={type} onChange={e=>setType(e.target.value)}>
+                <option value="待辦事項">📌 待辦</option>
+                <option value="會議">📅 會議</option>
+              </select>
+              <select class="text-xs border p-1.5 rounded bg-white font-bold" value={priority} onChange={e=>setPriority(e.target.value)}>
+                <option value="高">🔴 高優先</option>
+                <option value="中">🟡 中優先</option>
+                <option value="低">🟢 低優先</option>
+              </select>
+            </div>
+
+            <input 
+              type="text" 
+              placeholder="事項 / 會議名稱..." 
+              class="w-full text-xs border p-1.5 rounded bg-white" 
+              value={title} 
+              onChange={e=>setTitle(e.target.value)} 
+            />
+
+            <input 
+              type="datetime-local" 
+              class="w-full text-xs border p-1.5 rounded bg-white text-slate-600" 
+              value={dateTime} 
+              onChange={e=>setDateTime(e.target.value)} 
+            />
+
+            <input 
+              type="text" 
+              placeholder="備註說明 (選填)..." 
+              class="w-full text-xs border p-1.5 rounded bg-white" 
+              value={note} 
+              onChange={e=>setNote(e.target.value)} 
+            />
+
+            <button type="submit" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs py-1.5 rounded shadow-sm transition">
+              ➕ 新增提醒
+            </button>
+          </form>
+
+          {/* 進行中事項列表 */}
+          <div class="space-y-2">
+            <div class="text-xs font-bold text-amber-700 flex justify-between items-center border-b pb-1">
+              <span>⏳ 進行中 ({pendingList.length})</span>
+            </div>
+            <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {pendingList.length === 0 ? (
+                <div class="text-[11px] text-slate-400 text-center py-3">無進行中事項</div>
+              ) : pendingList.map(r => (
+                <div key={r.id} class="p-2.5 rounded-lg border border-amber-200 bg-amber-50/40 space-y-1 hover:border-amber-400 transition">
+                  <div class="flex items-start justify-between gap-1">
+                    <div class="flex items-start gap-1.5">
+                      <input 
+                        type="checkbox" 
+                        checked={false} 
+                        onChange={() => toggleStatus(r.id)} 
+                        class="mt-0.5 w-3.5 h-3.5 cursor-pointer text-emerald-600 rounded"
+                      />
+                      <span class="text-xs font-bold text-slate-800 leading-tight">{r.title}</span>
+                    </div>
+                    <button onClick={() => deleteReminder(r.id)} class="text-[10px] text-rose-500 hover:underline">✕</button>
+                  </div>
+                  
+                  <div class="flex items-center justify-between text-[10px] text-slate-500 pl-5">
+                    <span>{r.dateTime.replace('T', ' ')}</span>
+                    <span class={`px-1.5 py-0.2 rounded font-bold ${r.priority === '高' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-700'}`}>
+                      {r.priority}
+                    </span>
+                  </div>
+                  {r.note && <div class="text-[10px] text-slate-400 pl-5 truncate">{r.note}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 已完成事項列表 */}
+          <div class="space-y-2 pt-2 border-t">
+            <div class="text-xs font-bold text-emerald-700 flex justify-between items-center border-b pb-1">
+              <span>✓ 已完成 ({completedList.length})</span>
+            </div>
+            <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {completedList.length === 0 ? (
+                <div class="text-[11px] text-slate-400 text-center py-2">無已完成事項</div>
+              ) : completedList.map(r => (
+                <div key={r.id} class="p-2 rounded-lg border border-slate-200 bg-slate-50 opacity-60 hover:opacity-100 transition space-y-1">
+                  <div class="flex items-start justify-between gap-1">
+                    <div class="flex items-start gap-1.5">
+                      <input 
+                        type="checkbox" 
+                        checked={true} 
+                        onChange={() => toggleStatus(r.id)} 
+                        class="mt-0.5 w-3.5 h-3.5 cursor-pointer text-emerald-600 rounded"
+                      />
+                      <span class="text-xs font-medium text-slate-500 line-through leading-tight">{r.title}</span>
+                    </div>
+                    <button onClick={() => deleteReminder(r.id)} class="text-[10px] text-rose-500 hover:underline">✕</button>
+                  </div>
+                  <div class="text-[10px] text-slate-400 pl-5">{r.dateTime.replace('T', ' ')}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+      );
+    }
+
+    function App() {
+      const [reports, setReports] = useState(() => {
+        const saved = localStorage.getItem("mkt_work_weekly_reports_v17");
+        if (saved) {
+          try { 
+            const parsed = JSON.parse(saved);
+            if (parsed && parsed.length > 0) return parsed;
+          } catch (e) {}
+        }
+        return [createDefaultDemoReport()];
+      });
+
+      // 🔔 獨立通知提醒資料（完全獨立）
+      const [reminders, setReminders] = useState(() => {
+        const savedRem = localStorage.getItem("mkt_work_reminders_v1");
+        if (savedRem) {
+          try { return JSON.parse(savedRem); } catch(e) {}
+        }
+        const todayStr = new Date().toISOString().slice(0, 10);
+        return [
+          { id: "rem-1", type: "會議", title: "Q4 行銷策略對齊會議", dateTime: `${todayStr}T14:00`, priority: "高", status: "未完成", note: "需準備簡報草案" },
+          { id: "rem-2", type: "待辦事項", title: "審核 FB 廣告預算案", dateTime: `${todayStr}T17:00`, priority: "中", status: "未完成", note: "聯繫主管簽核" }
+        ];
+      });
+
+      const [selectedReportId, setSelectedReportId] = useState(reports[0]?.id || "");
+      const [activeTab, setActiveTab] = useState("overview"); 
+      const [editMode, setEditMode] = useState(null); 
+      const [formData, setFormData] = useState(null);
+
+      useEffect(() => {
+        localStorage.setItem("mkt_work_weekly_reports_v17", JSON.stringify(reports));
+      }, [reports]);
+
+      useEffect(() => {
+        localStorage.setItem("mkt_work_reminders_v1", JSON.stringify(reminders));
+      }, [reminders]);
+
+      const activeReport = reports.find(r => r.id === selectedReportId) || reports[0] || createTotallyBlankReport();
+
+      const handleCreateBlankReport = () => {
+        const newBlank = createTotallyBlankReport();
+        setReports([newBlank, ...reports]);
+        setSelectedReportId(newBlank.id);
+        setFormData(newBlank);
+        setActiveTab("work");
+        setEditMode("work");
+        alert("✨ 已建立空白報表！");
+      };
+
+      const handleDuplicateReport = (targetReport) => {
+        const nowTime = getFormattedDateTime();
+        const duplicated = {
+          ...JSON.parse(JSON.stringify(targetReport)),
+          id: `rep-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          weekCode: `${targetReport.weekCode} (複製)`,
+          status: "草稿",
+          createdTime: nowTime,
+          updatedTime: nowTime
+        };
+        setReports([duplicated, ...reports]);
+        setSelectedReportId(duplicated.id);
+        setFormData(duplicated);
+        setActiveTab("work");
+        setEditMode("work");
+        alert(`📋 已成功複製「${targetReport.weekCode}」！`);
+      };
+
+      const handleDeleteReport = (targetId, targetWeekCode) => {
+        if (reports.length <= 1) {
+          alert("⚠️ 系統至少需保留一份報表，無法刪除！");
+          return;
+        }
+        if (!window.confirm(`❓ 確定要刪除「${targetWeekCode || '此報表'}」嗎？`)) return;
+
+        const updatedReports = reports.filter(r => r.id !== targetId);
+        setReports(updatedReports);
+
+        if (targetId === selectedReportId) {
+          setSelectedReportId(updatedReports[0].id);
+          setEditMode(null);
+        }
+        alert("🗑️ 報表已成功刪除！");
+      };
+
+      const handleStartWorkEdit = () => {
+        setFormData(JSON.parse(JSON.stringify(activeReport)));
+        setEditMode("work");
+      };
+
+      const handleStartAnalyticsEdit = () => {
+        setFormData(JSON.parse(JSON.stringify(activeReport)));
+        setEditMode("analytics");
+      };
+
+      const handleSave = (targetStatus = "草稿") => {
+        const updatedTime = getFormattedDateTime();
+        const baseData = editMode ? formData : activeReport;
+        
+        const updated = { 
+          ...baseData, 
+          status: targetStatus,
+          updatedTime: updatedTime
+        };
+        
+        setReports(reports.map(r => r.id === updated.id ? updated : r));
+        setEditMode(null);
+        alert(`✅ 週報【${updated.weekCode}】已成功【${targetStatus}】！`);
+      };
+
+      const handleUpdateExecutiveSummary = (newSummaryText) => {
+        const updatedTime = getFormattedDateTime();
+        if (editMode && formData) {
+          setFormData({ ...formData, aiExecutiveSummary: newSummaryText });
+        } else {
+          const updated = { ...activeReport, aiExecutiveSummary: newSummaryText, updatedTime: updatedTime };
+          setReports(reports.map(r => r.id === updated.id ? updated : r));
+        }
+      };
+
+      const handleGenerateGlobalSummary = () => {
+        const target = editMode ? formData : activeReport;
+        const sections = target.workSections || [];
+        let allItems = [];
+        sections.forEach(s => { allItems = allItems.concat(s.items || []); });
+
+        const completed = allItems.filter(i => i.status === "已完成");
+        const ongoing = allItems.filter(i => i.status === "進行中");
+        const delayed = allItems.filter(i => i.status === "延遲排解");
+
+        const summaryText = `📊 【全頁綜合大綱摘要】 (填表人：${target.author || 'Serena'})
+
+一、 本週推進概況：
+• ${target.summary || '進度正常推進。'}
+• 工作分區管控：共 ${sections.length} 個區塊，總計 ${allItems.length} 項工作（🟢 進行中 ${ongoing.length} 項 / ⚪ 已完成 ${completed.length} 項 / 🔴 延遲排解 ${delayed.length} 項）
+
+二、 關鍵成果與亮點數據：
+• 專案突破：${target.keyWins ? target.keyWins.replace(/\n/g, ' ') : '無'}
+
+三、 須關注警示與協助：
+• 須協助/決策：${target.decisionsNeed ? target.decisionsNeed.replace(/\n/g, ' ') : '無'}
+${delayed.length > 0 ? `• 延遲項目排解：包含「${delayed.map(d=>d.title).join('」、「')}」，需要跨部門支援。` : ''}
+
+四、 下週重點排程安排：
+• ${target.nextWeekP1 ? target.nextWeekP1.replace(/\n/g, ' ') : '依既定排程進行'}`;
+
+        handleUpdateExecutiveSummary(summaryText);
+      };
+
+      return (
+        <div class="min-h-screen flex flex-col">
+          {/* 最上方功能導覽列 */}
+          <header class="bg-slate-900 text-white px-6 py-3 flex flex-wrap items-center justify-between shadow-md no-print gap-y-2 border-b border-slate-800">
+            <div class="flex items-center space-x-3">
+              <div class="bg-blue-600 px-2.5 py-1 rounded font-black text-sm tracking-wider">WORK</div>
+              <div>
+                <h1 class="font-bold text-sm sm:text-base flex items-center gap-2">
+                  行銷與工作推進整合週報系統
+                  <span class={`text-[10px] px-2 py-0.5 rounded font-bold ${activeReport.status === '已發布' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+                    {activeReport.status}
+                  </span>
+                </h1>
+                <p class="text-[10px] text-slate-400">填表人：{activeReport.author || 'Serena'} ｜ 獨立通知提醒右側欄</p>
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-2">
+              <button 
+                onClick={handleGenerateGlobalSummary}
+                class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold px-3 py-1.5 rounded shadow-sm transition flex items-center gap-1"
+              >
+                ⚡ 一鍵生成摘要
+              </button>
+
+              <div class="h-4 w-px bg-slate-700 mx-1"></div>
+
+              <button onClick={() => handleSave("草稿")} class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold px-3 py-1.5 rounded transition">💾 儲存草稿</button>
+              <button onClick={() => handleSave("已發布")} class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-1.5 rounded shadow-sm transition">🚀 發布報表</button>
+
+              <div class="h-4 w-px bg-slate-700 mx-1"></div>
+
+              <select 
+                class="bg-slate-800 border border-slate-700 text-white rounded px-2.5 py-1.5 outline-none font-medium max-w-[150px] truncate"
+                value={selectedReportId}
+                onChange={(e) => {
+                  setSelectedReportId(e.target.value);
+                  setEditMode(null);
+                }}
+              >
+                {reports.map(r => (
+                  <option key={r.id} value={r.id}>{r.weekCode} ({r.status})</option>
+                ))}
+              </select>
+
+              <button onClick={handleCreateBlankReport} class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded shadow-sm transition">➕ 新增空白報表</button>
+              <button onClick={() => handleDeleteReport(activeReport.id, activeReport.weekCode)} class="bg-rose-900/40 hover:bg-rose-800 text-rose-300 border border-rose-700/60 font-bold px-2.5 py-1.5 rounded transition">🗑️ 刪除</button>
+              <button onClick={handleExportPDF} class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded shadow-sm transition flex items-center gap-1">📄 匯出 PDF</button>
+
+              {editMode && (
+                <button onClick={() => setEditMode(null)} class="text-slate-400 hover:text-white px-2">取消編輯</button>
+              )}
+            </div>
+          </header>
+
+          {/* 分頁切換列 */}
+          <div class="bg-white border-b border-slate-200 px-6 pt-3 flex space-x-4 no-print overflow-x-auto">
+            <button 
+              onClick={() => { setEditMode(null); setActiveTab("overview"); }}
+              class={`pb-3 text-sm font-bold border-b-2 transition whitespace-nowrap ${activeTab === 'overview' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            >
+              🖥️ 整合儀表板
+            </button>
+            <button 
+              onClick={() => { setEditMode(null); setActiveTab("work"); }}
+              class={`pb-3 text-sm font-bold border-b-2 transition whitespace-nowrap ${activeTab === 'work' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            >
+              📋 工作內容總表
+            </button>
+            <button 
+              onClick={() => { setEditMode(null); setActiveTab("analytics"); }}
+              class={`pb-3 text-sm font-bold border-b-2 transition whitespace-nowrap ${activeTab === 'analytics' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            >
+              📊 行銷數據儀表板
+            </button>
+            <button 
+              onClick={() => { setEditMode(null); setActiveTab("history"); }}
+              class={`pb-3 text-sm font-bold border-b-2 transition whitespace-nowrap ${activeTab === 'history' ? 'border-amber-600 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            >
+              📜 歷史報表區 ({reports.length})
+            </button>
+          </div>
+
+          {/* 兩欄主版面 */}
+          <div class="flex-1 flex flex-col lg:flex-row main-layout overflow-hidden">
+            <main class="flex-1 p-4 sm:p-6 overflow-y-auto">
+              {editMode === 'work' && (
+                <WorkEditView formData={formData} setFormData={setFormData} onSave={handleSave} />
+              )}
+
+              {editMode === 'analytics' && (
+                <AnalyticsEditView formData={formData} setFormData={setFormData} onSave={handleSave} />
+              )}
+
+              {!editMode && (
+                <>
+                  {activeTab === "overview" && (
+                    <FullOverviewTab 
+                      report={activeReport} 
+                      onStartWorkEdit={handleStartWorkEdit}
+                      onStartAnalyticsEdit={handleStartAnalyticsEdit}
+                      onUpdateSummary={handleUpdateExecutiveSummary}
+                      onRegenerate={handleGenerateGlobalSummary}
+                    />
+                  )}
+                  {activeTab === "work" && (
+                    <WorkOverviewTab 
+                      report={activeReport} 
+                      onStartEdit={handleStartWorkEdit} 
+                      onUpdateSummary={handleUpdateExecutiveSummary}
+                      onRegenerate={handleGenerateGlobalSummary}
+                    />
+                  )}
+                  {activeTab === "analytics" && (
+                    <MarketingAnalyticsTab 
+                      report={activeReport} 
+                      onStartEdit={handleStartAnalyticsEdit} 
+                    />
+                  )}
+                  {activeTab === "history" && (
+                    <HistoryReportsTab 
+                      reports={reports}
+                      onSelectAndEdit={(id) => {
+                        setSelectedReportId(id);
+                        const rep = reports.find(r => r.id === id);
+                        setFormData(JSON.parse(JSON.stringify(rep)));
+                        setActiveTab("work");
+                        setEditMode("work");
+                      }}
+                      onDuplicate={(rep) => handleDuplicateReport(rep)}
+                      onDelete={(id, weekCode) => handleDeleteReport(id, weekCode)}
+                      onSelectView={(id) => {
+                        setSelectedReportId(id);
+                        setActiveTab("overview");
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </main>
+
+            {/* 獨立右側欄 */}
+            <RightReminderSidebar reminders={reminders} setReminders={setReminders} />
+          </div>
+        </div>
+      );
+    }
+
+    // 🖥️ 整合儀表板 View
+    function FullOverviewTab({ report, onStartWorkEdit, onStartAnalyticsEdit, onUpdateSummary, onRegenerate }) {
+      const metrics = report.marketingMetrics || [];
+      const sections = report.workSections || [];
+      const categories = Array.from(new Set(metrics.map(m => m.category || "其他數據")));
+
+      return (
+        <div class="space-y-6">
+          <div class="bg-slate-900 text-white p-6 rounded-xl shadow-md flex flex-wrap justify-between items-center print-card gap-y-3">
+            <div>
+              <span class="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">整合全覽 View</span>
+              <h2 class="text-2xl font-black mt-1">{report.weekCode} 整合總覽儀表板</h2>
+              <p class="text-xs text-slate-400 mt-1">週期：{report.startDate} ~ {report.endDate} │ 填表人：{report.author || 'Serena'}</p>
+            </div>
+          </div>
+
+          <ExecutiveSummaryCard summaryText={report.aiExecutiveSummary} onUpdateSummary={onUpdateSummary} onRegenerate={onRegenerate} />
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+              <h3 class="text-xs font-bold text-slate-700">📌 本週核心摘要</h3>
+              <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{report.summary || '（尚未填寫）'}</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+              <h3 class="text-xs font-bold text-emerald-700">🏆 本週關鍵成果</h3>
+              <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{report.keyWins || '（尚未填寫）'}</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+              <h3 class="text-xs font-bold text-rose-700">🚨 本週須決策/協助事項</h3>
+              <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{report.decisionsNeed || '（尚未填寫）'}</p>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-5">
+            <div class="flex justify-between items-center border-b pb-3">
+              <h3 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-2">📋 工作推進項目 (全分區同步)</h3>
+              <button onClick={onStartWorkEdit} class="no-print text-xs text-blue-600 font-bold hover:underline">✏️ 編輯工作區塊與內容</button>
+            </div>
+
+            <div class="space-y-6">
+              {sections.map((sec, sIdx) => (
+                <div key={sec.id || sIdx} class="space-y-2">
+                  <div class="text-xs font-bold text-slate-700 flex items-center gap-2">
+                    <span class="px-2 py-0.5 bg-slate-100 rounded border text-slate-600">分區 #{sIdx + 1}</span>
+                    <span>{sec.title || "工作分區"}</span>
+                  </div>
+
+                  <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table class="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr class="bg-slate-50 text-slate-700 font-bold border-b">
+                          <th class="p-2.5 w-2/5">工作項目</th>
+                          <th class="p-2.5 w-1/5">狀態</th>
+                          <th class="p-2.5 w-1/4">成果 / 產出</th>
+                          <th class="p-2.5 w-1/6">指派人</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100 bg-white">
+                        {(sec.items || []).map((item) => (
+                          <tr key={item.id} class="hover:bg-slate-50">
+                            <td class="p-2.5 font-medium text-slate-800">{item.title || '（尚未填寫）'}</td>
+                            <td class="p-2.5"><StatusBadge status={item.status} /></td>
+                            <td class="p-2.5 text-slate-600">{item.result || '—'}</td>
+                            <td class="p-2.5"><span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] border">{item.owner || report.author}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-5">
+            <div class="flex justify-between items-center border-b pb-3">
+              <h3 class="text-base font-bold text-slate-800 border-l-4 border-purple-600 pl-2">📊 行銷數據總覽 (依類別同步)</h3>
+              <button onClick={onStartAnalyticsEdit} class="no-print text-xs text-blue-600 font-bold hover:underline">✏️ 編輯行銷數據</button>
+            </div>
+
+            <div class="space-y-5">
+              {categories.map(cat => (
+                <div key={cat} class="space-y-2">
+                  <div class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                    <span>{cat}</span>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {metrics.filter(m => (m.category || "其他數據") === cat).map(m => (
+                      <MetricCard key={m.id} metric={m} compact={true} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+            <h3 class="text-sm font-bold text-slate-800 border-l-4 border-amber-500 pl-2">🎯 下週預計安排事項</h3>
+            <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap pl-3.5">{report.nextWeekP1 || '（尚未填寫）'}</p>
+          </div>
+        </div>
+      );
+    }
+
+    // 📋 工作內容總表 View
+    function WorkOverviewTab({ report, onStartEdit, onUpdateSummary, onRegenerate }) {
+      const sections = report.workSections || [];
+
+      return (
+        <div class="space-y-6">
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-wrap justify-between items-center gap-y-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">Work Summary</span>
+                <span class={`px-2 py-0.5 rounded text-[10px] font-bold ${report.status === '已發布' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {report.status}
+                </span>
+              </div>
+              <h2 class="text-2xl font-black text-slate-800 mt-1">{report.weekCode} 工作內容總表</h2>
+              <p class="text-xs text-slate-500 mt-1">
+                週報週期：{report.startDate} ~ {report.endDate} │ 填表人：<span class="font-bold text-slate-800">{report.author || 'Serena'}</span>
+              </p>
+            </div>
+            
+            <div class="no-print flex items-center space-x-2">
+              <button onClick={onStartEdit} class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition">✏️ 編輯工作區塊與內容</button>
+            </div>
+          </div>
+
+          <ExecutiveSummaryCard summaryText={report.aiExecutiveSummary} onUpdateSummary={onUpdateSummary} onRegenerate={onRegenerate} />
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+              <h3 class="text-xs font-bold text-slate-700">📌 本週核心摘要</h3>
+              <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{report.summary || '（尚未填寫）'}</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+              <h3 class="text-xs font-bold text-emerald-700">🏆 本週關鍵成果</h3>
+              <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{report.keyWins || '（尚未填寫）'}</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+              <h3 class="text-xs font-bold text-rose-700">🚨 本週須決策/協助事項</h3>
+              <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{report.decisionsNeed || '（尚未填寫）'}</p>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            {sections.map((sec, secIdx) => (
+              <div key={sec.id || secIdx} class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div class="flex items-center gap-2 border-l-4 border-blue-600 pl-3">
+                  <h3 class="text-sm font-bold text-slate-800">{sec.title || `工作分區 #${secIdx + 1}`}</h3>
+                  <span class="text-xs text-slate-400">({(sec.items || []).length} 個項目)</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr class="bg-slate-50 text-slate-700 font-bold border-b">
+                        <th class="p-3 w-2/5">工作項目</th>
+                        <th class="p-3 w-1/5">工作狀態</th>
+                        <th class="p-3 w-1/4">成果 / 產出</th>
+                        <th class="p-3 w-1/6">指派人</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      {(sec.items || []).map((item) => (
+                        <tr key={item.id} class="hover:bg-slate-50">
+                          <td class="p-3 font-medium text-slate-800">{item.title || '（尚未填寫）'}</td>
+                          <td class="p-3"><StatusBadge status={item.status} /></td>
+                          <td class="p-3 text-slate-600">{item.result || '—'}</td>
+                          <td class="p-3"><span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] border">{item.owner || report.author}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+            <h3 class="text-sm font-bold text-slate-800 border-l-4 border-amber-500 pl-2">🎯 下週預計安排事項</h3>
+            <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap pl-3.5">{report.nextWeekP1 || '（尚未填寫）'}</p>
+          </div>
+        </div>
+      );
+    }
+
+    // 📊 行銷數據儀表板 View
+    function MarketingAnalyticsTab({ report, onStartEdit }) {
+      const metrics = report.marketingMetrics || [];
+      const categories = Array.from(new Set(metrics.map(m => m.category || "其他數據")));
+
+      return (
+        <div class="space-y-6">
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-wrap justify-between items-center gap-y-3">
+            <div>
+              <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">Analytics Dashboard</span>
+              <h2 class="text-2xl font-black text-slate-800 mt-1">行銷數據儀表板</h2>
+              <p class="text-xs text-slate-500 mt-1">
+                本週 vs 上週數據對比分析 │ 排名變化以順位差標示 (上升為紅)
+              </p>
+            </div>
+            
+            <div class="no-print flex items-center space-x-2">
+              <button onClick={onStartEdit} class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition">✏️ 編輯行銷數據</button>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            {categories.map(cat => (
+              <div key={cat} class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b pb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-blue-600"></span>
+                    <h3 class="text-base font-bold text-slate-800">{cat}</h3>
+                    <span class="text-xs text-slate-400">({metrics.filter(m => (m.category || "其他數據") === cat).length} 個指標)</span>
+                  </div>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {metrics.filter(m => (m.category || "其他數據") === cat).map(item => (
+                    <MetricCard key={item.id} metric={item} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 📜 歷史報表區 View (已修正：刪除ID、新增全部/本週/本月/本年與日期範圍篩選)
+    function HistoryReportsTab({ reports, onSelectAndEdit, onDuplicate, onDelete, onSelectView }) {
+      const [searchTerm, setSearchTerm] = useState("");
+      const [filterStatus, setFilterStatus] = useState("ALL");
+      const [timePeriodFilter, setTimePeriodFilter] = useState("ALL"); // ALL, WEEK, MONTH, YEAR
+      const [startDateFilter, setStartDateFilter] = useState("");
+      const [endDateFilter, setEndDateFilter] = useState("");
+
+      const filteredReports = useMemo(() => {
+        const now = new Date();
+
+        return reports.filter(r => {
+          // 1. 關鍵字搜尋（週次、填表人、日期）
+          const matchSearch = (r.weekCode || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              (r.author || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              (r.createdTime || "").includes(searchTerm) ||
+                              (r.startDate || "").includes(searchTerm) ||
+                              (r.endDate || "").includes(searchTerm);
+
+          // 2. 狀態篩選
+          const matchStatus = filterStatus === "ALL" ? true : r.status === filterStatus;
+
+          // 3. 快捷時間區間篩選 (依據建立時間 createdTime 或 startDate)
+          let matchTimePeriod = true;
+          const repDateStr = (r.createdTime ? r.createdTime.split(" ")[0] : r.startDate) || "";
+          
+          if (repDateStr && timePeriodFilter !== "ALL") {
+            const repDate = new Date(repDateStr);
+            if (!isNaN(repDate.getTime())) {
+              if (timePeriodFilter === "WEEK") {
+                // 本週計算 (以週日為始或一週內)
+                const currentDay = now.getDay();
+                const firstDayOfWeek = new Date(now);
+                firstDayOfWeek.setDate(now.getDate() - currentDay);
+                firstDayOfWeek.setHours(0,0,0,0);
+                
+                const lastDayOfWeek = new Date(firstDayOfWeek);
+                lastDayOfWeek.setDate(firstDayOfWeek.getDate() + 6);
+                lastDayOfWeek.setHours(23,59,59,999);
+
+                matchTimePeriod = repDate >= firstDayOfWeek && repDate <= lastDayOfWeek;
+              } else if (timePeriodFilter === "MONTH") {
+                matchTimePeriod = repDate.getFullYear() === now.getFullYear() && repDate.getMonth() === now.getMonth();
+              } else if (timePeriodFilter === "YEAR") {
+                matchTimePeriod = repDate.getFullYear() === now.getFullYear();
+              }
+            }
+          }
+
+          // 4. 自訂日期區間篩選
+          let matchCustomDate = true;
+          if (repDateStr) {
+            if (startDateFilter && repDateStr < startDateFilter) matchCustomDate = false;
+            if (endDateFilter && repDateStr > endDateFilter) matchCustomDate = false;
+          }
+
+          return matchSearch && matchStatus && matchTimePeriod && matchCustomDate;
+        });
+      }, [reports, searchTerm, filterStatus, timePeriodFilter, startDateFilter, endDateFilter]);
+
+      return (
+        <div class="space-y-6">
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <div class="flex flex-wrap justify-between items-center gap-2 border-b pb-3">
+              <div>
+                <h2 class="text-xl font-black text-slate-800">📜 歷史報表紀錄區</h2>
+                <p class="text-xs text-slate-500 mt-0.5">查詢版本歷史、建立/更新時間與快速複製檢視</p>
+              </div>
+              <div class="text-xs font-bold text-slate-500">
+                共篩選出 <span class="text-blue-600 font-extrabold">{filteredReports.length}</span> 份報表
+              </div>
+            </div>
+
+            {/* 篩選工具列 */}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
+              {/* 文字搜尋 */}
+              <input 
+                type="text" 
+                placeholder="🔍 搜尋標題、填表人..."
+                class="text-xs border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+
+              {/* 報表類別快捷篩選 */}
+              <select 
+                class="text-xs border p-2 rounded-lg bg-white outline-none font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
+                value={timePeriodFilter}
+                onChange={e => setTimePeriodFilter(e.target.value)}
+              >
+                <option value="ALL">🌐 全部報表</option>
+                <option value="WEEK">📅 本週報表</option>
+                <option value="MONTH">🗓️ 本月報表</option>
+                <option value="YEAR">📊 本年報表</option>
+              </select>
+
+              {/* 狀態篩選 */}
+              <select 
+                class="text-xs border p-2 rounded-lg bg-white outline-none font-medium focus:ring-2 focus:ring-blue-500"
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+              >
+                <option value="ALL">全部狀態</option>
+                <option value="已發布">已發布</option>
+                <option value="草稿">草稿</option>
+              </select>
+
+              {/* 開始日期 */}
+              <div class="flex items-center gap-1.5 bg-slate-50 border p-1.5 rounded-lg">
+                <span class="text-[11px] font-bold text-slate-400 shrink-0">從:</span>
+                <input 
+                  type="date" 
+                  class="text-xs bg-transparent w-full outline-none text-slate-700"
+                  value={startDateFilter}
+                  onChange={e => setStartDateFilter(e.target.value)}
+                />
+              </div>
+
+              {/* 結束日期 */}
+              <div class="flex items-center gap-1.5 bg-slate-50 border p-1.5 rounded-lg">
+                <span class="text-[11px] font-bold text-slate-400 shrink-0">至:</span>
+                <input 
+                  type="date" 
+                  class="text-xs bg-transparent w-full outline-none text-slate-700"
+                  value={endDateFilter}
+                  onChange={e => setEndDateFilter(e.target.value)}
+                />
+              </div>
+            </div>
+            
+            {(startDateFilter || endDateFilter || searchTerm || timePeriodFilter !== 'ALL' || filterStatus !== 'ALL') && (
+              <div class="flex justify-end pt-1">
+                <button 
+                  onClick={() => {
+                    setSearchTerm("");
+                    setFilterStatus("ALL");
+                    setTimePeriodFilter("ALL");
+                    setStartDateFilter("");
+                    setEndDateFilter("");
+                  }}
+                  class="text-[11px] text-rose-600 hover:underline font-bold flex items-center gap-1"
+                >
+                  ✕ 清除所有篩選條件
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 報表卡片列表 */}
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredReports.length === 0 ? (
+              <div class="col-span-1 md:col-span-2 lg:col-span-3 bg-white p-12 text-center text-slate-400 rounded-xl border border-dashed space-y-2">
+                <div class="text-2xl">🔍</div>
+                <div class="font-bold text-slate-600">沒有符合條件的報表紀錄</div>
+                <div class="text-xs text-slate-400">請嘗試調整您的日期區間或搜尋關鍵字</div>
+              </div>
+            ) : filteredReports.map(rep => (
+              <div key={rep.id} class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4 flex flex-col justify-between hover:border-blue-400 hover:shadow-md transition">
+                <div class="space-y-2.5">
+                  <div class="flex justify-between items-center">
+                    <span class={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${rep.status === '已發布' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                      {rep.status}
+                    </span>
+                    <span class="text-[10px] text-slate-400 font-medium">建立日期：{rep.createdTime ? rep.createdTime.split(' ')[0] : rep.startDate}</span>
+                  </div>
+
+                  <div>
+                    <h3 class="text-base font-bold text-slate-800 leading-snug">{rep.weekCode}</h3>
+                    <p class="text-xs text-slate-500 mt-1">週報週期：{rep.startDate} ~ {rep.endDate}</p>
+                    <p class="text-xs text-slate-500">填表人：<span class="font-bold text-slate-700">{rep.author || 'Serena'}</span></p>
+                  </div>
+
+                  <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1 text-[11px] text-slate-500 font-mono">
+                    <div class="flex justify-between">
+                      <span>📤 建立時間：</span>
+                      <span class="font-bold text-slate-700">{rep.createdTime || '—'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span>🔄 更新時間：</span>
+                      <span class="font-bold text-slate-700">{rep.updatedTime || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="space-y-1.5 pt-3 border-t border-slate-100">
+                  <div class="grid grid-cols-3 gap-1.5">
+                    <button onClick={() => onDuplicate(rep)} class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 rounded transition">📋 複製</button>
+                    <button onClick={() => onSelectAndEdit(rep.id)} class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-1.5 rounded transition">✏️ 編輯</button>
+                    <button onClick={() => onSelectView(rep.id)} class="bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold py-1.5 rounded border border-purple-200 transition">🔍 檢視</button>
+                  </div>
+                  <button onClick={() => onDelete(rep.id, rep.weekCode)} class="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold py-1 rounded transition">🗑️ 刪除報表</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ✏️ 專屬編輯模式：工作內容
+    function WorkEditView({ formData, setFormData, onSave }) {
+      const handleChange = (field, val) => setFormData({ ...formData, [field]: val });
+
+      const addSection = () => {
+        const newSec = {
+          id: `sec-${Date.now()}`,
+          title: "新工作分區",
+          items: [{ id: `w-${Date.now()}`, title: "", status: "進行中", result: "", owner: formData.author || "Serena" }]
+        };
+        setFormData({ ...formData, workSections: [...(formData.workSections || []), newSec] });
+      };
+
+      const removeSection = (sIdx) => {
+        if (formData.workSections.length <= 1) {
+          alert("⚠️ 系統至少需保留一個工作分區！");
+          return;
+        }
+        if (window.confirm("❓ 確定要刪除這個工作分區及其所有內容嗎？")) {
+          const updated = formData.workSections.filter((_, i) => i !== sIdx);
+          setFormData({ ...formData, workSections: updated });
+        }
+      };
+
+      const handleSectionTitleChange = (sIdx, val) => {
+        const updated = [...formData.workSections];
+        updated[sIdx].title = val;
+        setFormData({ ...formData, workSections: updated });
+      };
+
+      const addWorkItem = (sIdx) => {
+        const updated = [...formData.workSections];
+        updated[sIdx].items.push({ id: `w-${Date.now()}`, title: "", status: "進行中", result: "", owner: formData.author || "Serena" });
+        setFormData({ ...formData, workSections: updated });
+      };
+
+      const removeWorkItem = (sIdx, itemIdx) => {
+        const updated = [...formData.workSections];
+        updated[sIdx].items = updated[sIdx].items.filter((_, i) => i !== itemIdx);
+        setFormData({ ...formData, workSections: updated });
+      };
+
+      const handleWorkItemChange = (sIdx, itemIdx, field, val) => {
+        const updated = [...formData.workSections];
+        updated[sIdx].items[itemIdx][field] = val;
+        setFormData({ ...formData, workSections: updated });
+      };
+
+      return (
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+          <div class="flex justify-between items-center border-b pb-3">
+            <div>
+              <h2 class="text-lg font-bold text-slate-800">✏️ 編輯工作區塊與內容 — 【{formData.weekCode}】</h2>
+              <p class="text-xs text-slate-400">管理不同工作分區及細項，資料將即時同步至整合儀表板</p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button onClick={addSection} class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded shadow-sm">➕ 新增工作分區</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">週次標題</label>
+              <input type="text" class="w-full text-xs border p-2 rounded font-bold" value={formData.weekCode} onChange={e=>handleChange('weekCode', e.target.value)} />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">開始日期</label>
+              <input type="date" class="w-full text-xs border p-2 rounded" value={formData.startDate} onChange={e=>handleChange('startDate', e.target.value)} />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">結束日期</label>
+              <input type="date" class="w-full text-xs border p-2 rounded" value={formData.endDate} onChange={e=>handleChange('endDate', e.target.value)} />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">填表人</label>
+              <input type="text" class="w-full text-xs border p-2 rounded font-bold" value={formData.author} onChange={e=>handleChange('author', e.target.value)} />
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">📌 本週核心摘要</label>
+              <textarea rows="2" class="w-full text-xs border p-2 rounded" value={formData.summary} onChange={e=>handleChange('summary', e.target.value)}></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-emerald-700 mb-1">🏆 本週關鍵成果</label>
+              <textarea rows="2" class="w-full text-xs border p-2 rounded" value={formData.keyWins} onChange={e=>handleChange('keyWins', e.target.value)}></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-rose-700 mb-1">🚨 本週須決策/協助事項</label>
+              <textarea rows="2" class="w-full text-xs border p-2 rounded" value={formData.decisionsNeed} onChange={e=>handleChange('decisionsNeed', e.target.value)}></textarea>
+            </div>
+          </div>
+
+          <div class="space-y-6 pt-2">
+            {(formData.workSections || []).map((sec, sIdx) => (
+              <div key={sec.id || sIdx} class="bg-slate-50 p-4 rounded-xl border border-slate-300 space-y-3">
+                <div class="flex justify-between items-center gap-2 border-b border-slate-200 pb-2">
+                  <div class="flex items-center gap-2 flex-1">
+                    <span class="text-xs font-black text-blue-600">區塊 #{sIdx + 1}</span>
+                    <input 
+                      type="text" 
+                      class="text-xs font-bold border p-1.5 rounded w-2/3 bg-white text-slate-800" 
+                      placeholder="輸入分區名稱"
+                      value={sec.title} 
+                      onChange={(e) => handleSectionTitleChange(sIdx, e.target.value)}
+                    />
+                  </div>
+                  
+                  <div class="flex items-center space-x-2">
+                    <button 
+                      onClick={() => addWorkItem(sIdx)} 
+                      class="bg-blue-600 text-white text-xs px-2.5 py-1 rounded font-bold shadow-sm"
+                    >
+                      + 新增區塊事項
+                    </button>
+                    <button 
+                      onClick={() => removeSection(sIdx)} 
+                      class="bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs px-2.5 py-1 rounded font-bold border border-rose-300"
+                    >
+                      🗑️ 刪除區塊
+                    </button>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  {(sec.items || []).map((item, itemIdx) => (
+                    <div key={item.id} class="flex gap-2 items-center bg-white p-2 rounded border border-slate-200">
+                      <input type="text" placeholder="工作項目名稱" class="w-2/5 text-xs border p-1.5 rounded" value={item.title} onChange={e=>handleWorkItemChange(sIdx, itemIdx, 'title', e.target.value)} />
+                      <select 
+                        class="w-1/5 text-xs border p-1.5 rounded font-bold bg-white"
+                        value={item.status || "進行中"}
+                        onChange={e=>handleWorkItemChange(sIdx, itemIdx, 'status', e.target.value)}
+                      >
+                        <option value="進行中">🟢 進行中</option>
+                        <option value="已完成">⚪ 已完成</option>
+                        <option value="延遲排解">🔴 延遲排解</option>
+                      </select>
+                      <input type="text" placeholder="成果/產出" class="w-1/4 text-xs border p-1.5 rounded" value={item.result} onChange={e=>handleWorkItemChange(sIdx, itemIdx, 'result', e.target.value)} />
+                      <input type="text" placeholder="指派人" class="w-1/6 text-xs border p-1.5 rounded" value={item.owner} onChange={e=>handleWorkItemChange(sIdx, itemIdx, 'owner', e.target.value)} />
+                      <button onClick={()=>removeWorkItem(sIdx, itemIdx)} class="text-rose-600 text-xs px-1 font-bold">✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div class="pt-2">
+            <label class="block text-xs font-bold text-amber-800 mb-1">🎯 下週預計安排事項</label>
+            <textarea rows="3" class="w-full text-xs border p-2 rounded" value={formData.nextWeekP1} onChange={e=>handleChange('nextWeekP1', e.target.value)}></textarea>
+          </div>
+        </div>
+      );
+    }
+
+    // ✏️ 專屬編輯模式：行銷數據指標
+    function AnalyticsEditView({ formData, setFormData, onSave }) {
+      const handleMetricChange = (idx, field, val) => {
+        const updated = [...formData.marketingMetrics];
+        if (field === 'val' || field === 'prev') {
+          updated[idx][field] = Number(val) || 0;
+        } else if (field === 'isInverted') {
+          updated[idx][field] = Boolean(val);
+        } else {
+          updated[idx][field] = val;
+        }
+        setFormData({ ...formData, marketingMetrics: updated });
+      };
+
+      const addMetric = () => {
+        setFormData({
+          ...formData,
+          marketingMetrics: [
+            ...formData.marketingMetrics,
+            { id: `m-${Date.now()}`, category: "GA4 網站數據", name: "新數據欄位", val: 0, prev: 0, unit: "次", isInverted: false }
+          ]
+        });
+      };
+
+      const removeMetric = (idx) => {
+        setFormData({ ...formData, marketingMetrics: formData.marketingMetrics.filter((_, i) => i !== idx) });
+      };
+
+      return (
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+          <div class="flex justify-between items-center border-b pb-3">
+            <div>
+              <h2 class="text-lg font-bold text-slate-800">📊 編輯行銷數據指標 — 【{formData.weekCode}】</h2>
+              <p class="text-xs text-slate-400">勾選「排名指標邏輯」後，變化將改以「順位差」顯示（如上升 1.8 名，紅底）</p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button onClick={addMetric} class="bg-purple-600 text-white text-xs px-3 py-1.5 rounded font-bold">+ 新增數據欄位</button>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            {formData.marketingMetrics.map((m, idx) => (
+              <div key={m.id} class="grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded border">
+                <input type="text" placeholder="類別" class="text-xs border p-1.5 rounded col-span-2 bg-white" value={m.category} onChange={e=>handleMetricChange(idx, 'category', e.target.value)} />
+                <input type="text" placeholder="指標名稱" class="text-xs border p-1.5 rounded col-span-3 bg-white" value={m.name} onChange={e=>handleMetricChange(idx, 'name', e.target.value)} />
+                <div class="flex gap-1 col-span-3">
+                  <input type="number" step="0.1" placeholder="本週" class="w-1/2 text-xs border p-1.5 rounded font-bold text-blue-700 bg-white" value={m.val} onChange={e=>handleMetricChange(idx, 'val', e.target.value)} />
+                  <input type="number" step="0.1" placeholder="上週" class="w-1/2 text-xs border p-1.5 rounded bg-white text-slate-500" value={m.prev} onChange={e=>handleMetricChange(idx, 'prev', e.target.value)} />
+                </div>
+                <input type="text" placeholder="單位" class="text-xs border p-1.5 rounded col-span-1 bg-white" value={m.unit} onChange={e=>handleMetricChange(idx, 'unit', e.target.value)} />
+                
+                <div class="col-span-3 flex items-center justify-between pl-1">
+                  <label class="flex items-center gap-1 text-[11px] text-slate-700 cursor-pointer font-medium" title="勾選後將顯示順位差，排名數字變小代表上升（顯示紅底）">
+                    <input 
+                      type="checkbox" 
+                      checked={Boolean(m.isInverted)} 
+                      onChange={e => handleMetricChange(idx, 'isInverted', e.target.checked)}
+                      class="rounded text-rose-600"
+                    />
+                    <span>排名指標邏輯 (顯示順位差/紅底)</span>
+                  </label>
+
+                  <button onClick={()=>removeMetric(idx)} class="text-rose-600 text-xs font-bold hover:underline">刪除 ✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
