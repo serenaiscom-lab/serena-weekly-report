@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>社群排程與審核中心 - ISCOM / ISCloud 360</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- 1. 頂部導覽列 -->
+  <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-md">
+    <div class="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-blue-600 text-white p-2 rounded-lg font-bold flex items-center space-x-2">
+          <i data-lucide="share-2" class="w-5 h-5"></i>
+          <span>ISCOM Social</span>
+        </div>
+        <span class="text-slate-400 text-sm hidden md:inline">| 社群排程與審核中心</span>
+      </div>
+
+      <nav class="flex items-center space-x-1">
+        <button onclick="startNewPost()" id="nav-create" class="px-4 py-2 rounded-md font-medium text-sm transition-colors bg-blue-600 text-white flex items-center space-x-2">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          <span>新增貼文</span>
+        </button>
+        <button onclick="switchTab('library')" id="nav-library" class="px-4 py-2 rounded-md font-medium text-sm transition-colors text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2">
+          <i data-lucide="folder-kanban" class="w-4 h-4"></i>
+          <span>內容庫</span>
+        </button>
+        <button onclick="switchTab('review')" id="nav-review" class="px-4 py-2 rounded-md font-medium text-sm transition-colors text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2 relative">
+          <i data-lucide="file-check-2" class="w-4 h-4"></i>
+          <span>待審核內容</span>
+          <span id="reviewCountBadge" class="bg-amber-500 text-slate-950 font-bold text-xs px-1.5 py-0.5 rounded-full ml-1">0</span>
+        </button>
+        <button onclick="switchTab('calendar')" id="nav-calendar" class="px-4 py-2 rounded-md font-medium text-sm transition-colors text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2">
+          <i data-lucide="calendar" class="w-4 h-4"></i>
+          <span>月曆排程</span>
+        </button>
+      </nav>
+
+      <div class="flex items-center space-x-3 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
+        <div class="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-xs">S</div>
+        <span class="text-xs font-medium text-slate-200">Serena (行銷專員)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 2. 主內容區塊 -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto p-6">
+
+    <!-- 頁籤 1: 新增 / 編輯貼文 -->
+    <div id="tab-create" class="block">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-800" id="form-title">建立新社群貼文</h1>
+          <p class="text-slate-500 text-sm mt-1">選取發布品牌與平台，右側可進行完整多圖切換擬真預覽。</p>
+        </div>
+        <div class="flex items-center space-x-3">
+          <button onclick="resetForm()" class="px-3.5 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-medium text-sm">重置</button>
+          <button onclick="deleteCurrentPost()" class="px-3.5 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-medium text-sm">刪除貼文</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- 左欄：編輯表單 -->
+        <div class="lg:col-span-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+          <input type="hidden" id="editingPostId" value="">
+          
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">內部貼文標題 *</label>
+            <input type="text" id="internalTitle" value="【2026 ESG】AI 智慧碳盤查系統線上發表會" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800">
+          </div>
+
+          <!-- 品牌複選 / 單選 -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">發布品牌 (可複選，將更新預覽大頭貼)</label>
+            <div class="flex items-center space-x-6">
+              <label class="flex items-center space-x-2 cursor-pointer">
+                <input type="checkbox" id="brandISCOM" checked onchange="updatePreviews()" class="w-4 h-4 text-blue-600 rounded">
+                <span class="text-sm font-medium text-slate-700">采威國際 ISCOM</span>
+              </label>
+              <label class="flex items-center space-x-2 cursor-pointer">
+                <input type="checkbox" id="brandISCloud" onchange="updatePreviews()" class="w-4 h-4 text-blue-600 rounded">
+                <span class="text-sm font-medium text-slate-700">ISCloud 360</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 發布平台選擇 -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">發布平台 (可獨立單選或複選)</label>
+            <div class="flex items-center space-x-6">
+              <label class="flex items-center space-x-2 cursor-pointer bg-slate-50 border px-3.5 py-2 rounded-lg hover:bg-slate-100">
+                <input type="checkbox" id="platformFB" checked onchange="updatePreviews()" class="w-4 h-4 text-blue-600 rounded">
+                <span class="text-sm font-semibold text-slate-800 flex items-center space-x-2">
+                  <svg class="w-5 h-5 text-[#1877F2] fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                  <span>Facebook</span>
+                </span>
+              </label>
+              <label class="flex items-center space-x-2 cursor-pointer bg-slate-50 border px-3.5 py-2 rounded-lg hover:bg-slate-100">
+                <input type="checkbox" id="platformIG" checked onchange="updatePreviews()" class="w-4 h-4 text-pink-600 rounded">
+                <span class="text-sm font-semibold text-slate-800 flex items-center space-x-2">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="url(#igGrad)" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/><defs><linearGradient id="igGrad" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#fdf497"/><stop offset="5%" stop-color="#fdf497"/><stop offset="45%" stop-color="#fd5949"/><stop offset="60%" stop-color="#d6249f"/><stop offset="100%" stop-color="#285AEB"/></linearGradient></defs></svg>
+                  <span>Instagram</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 文案設定 -->
+          <div class="space-y-3">
+            <div class="flex justify-between items-center">
+              <label class="text-sm font-semibold text-slate-700">貼文文案內容</label>
+              <label class="flex items-center space-x-1.5 cursor-pointer text-xs text-slate-600">
+                <input type="checkbox" id="sameCaptionToggle" checked onchange="toggleSameCaption()" class="w-3.5 h-3.5 text-blue-600 rounded">
+                <span>FB 與 IG 使用相同文案</span>
+              </label>
+            </div>
+
+            <div>
+              <textarea id="fbCaption" rows="4" oninput="handleCaptionInput('fb')" class="w-full p-3 border border-slate-300 rounded-lg text-sm text-slate-800 leading-relaxed focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="輸入 FB 文案...">🚀 采威國際 ISCloud 360 企業數位轉型新利器！
+面對淨零碳排趨勢，您的企業準備好了嗎？
+
+我們將於本週開辦「AI 智慧碳盤查與 ESG 永續管理線上研討會」，邀請專家現場示範！
+
+💡 亮點搶先看：
+1. 擺脫 Excel 繁瑣紀錄
+2. 智慧生成 ISO 國際報告
+3. 一站式資安防護
+
+👉 點擊連結報名：https://iscloud360.com/webinar
+#采威國際 #ISCloud360 #ESG #碳盤查</textarea>
+            </div>
+
+            <div id="igCaptionBox" class="hidden">
+              <label class="block text-xs font-semibold text-pink-600 mb-1">IG 專用文案</label>
+              <textarea id="igCaption" rows="4" oninput="handleCaptionInput('ig')" class="w-full p-3 border border-slate-300 rounded-lg text-sm text-slate-800 leading-relaxed focus:ring-2 focus:ring-pink-500 focus:outline-none" placeholder="輸入 IG 文案..."></textarea>
+            </div>
+          </div>
+
+          <!-- 多圖上傳區 -->
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="text-sm font-semibold text-slate-700">圖片上傳 (可多選，支援多圖點擊切換完整呈現)</label>
+              <span class="text-xs font-medium text-slate-500"><span id="imageCount">0</span> / 10 張</span>
+            </div>
+            
+            <div class="border-2 border-dashed border-slate-300 hover:border-blue-400 rounded-xl p-5 text-center bg-slate-50/50 cursor-pointer" onclick="document.getElementById('fileInput').click()">
+              <input type="file" id="fileInput" multiple accept="image/*" class="hidden" onchange="handleFileUpload(event)">
+              <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-400 mx-auto mb-1"></i>
+              <p class="text-sm font-semibold text-slate-700">點擊選擇圖片檔案 (可一次選取多張)</p>
+            </div>
+
+            <div id="imageList" class="grid grid-cols-5 gap-2 mt-3"></div>
+          </div>
+
+          <!-- 排程時間 -->
+          <div class="pt-3 border-t grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">預定發布日期</label>
+              <input type="date" id="scheduleDate" value="2026-09-15" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">預定發布時間</label>
+              <input type="time" id="scheduleTime" value="15:30" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+          </div>
+
+          <!-- 操作按鈕 -->
+          <div class="pt-2 flex items-center justify-between border-t">
+            <span class="text-xs text-slate-500">當前狀態：<span class="font-semibold text-slate-700" id="currentStatusText">草稿</span></span>
+            <div class="flex items-center space-x-3">
+              <button onclick="savePost('DRAFT')" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 text-sm font-medium">儲存為草稿</button>
+              <button onclick="savePost('PENDING')" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-sm flex items-center space-x-1">
+                <i data-lucide="send" class="w-4 h-4"></i>
+                <span>送主管審核</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 右欄：超擬真 FB / IG 切換與多圖呈現 -->
+        <div class="lg:col-span-6 space-y-4">
+          <div class="bg-white p-3 rounded-xl border shadow-sm flex items-center justify-between">
+            <span class="text-sm font-bold text-slate-700 flex items-center space-x-2">
+              <i data-lucide="smartphone" class="w-4 h-4 text-slate-500"></i>
+              <span>真實平台介面模擬 (點擊縮圖可完整呈現)</span>
+            </span>
+            <div class="flex bg-slate-100 p-1 rounded-lg">
+              <button onclick="switchPreviewTab('fb')" id="preview-tab-fb" class="px-3 py-1 text-xs font-bold rounded-md bg-white text-blue-600 shadow-sm flex items-center space-x-1">
+                <svg class="w-3.5 h-3.5 text-[#1877F2] fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                <span>Facebook</span>
+              </button>
+              <button onclick="switchPreviewTab('ig')" id="preview-tab-ig" class="px-3 py-1 text-xs font-bold rounded-md text-slate-600 flex items-center space-x-1">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24"><path fill="url(#igGrad)" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                <span>Instagram</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- FB 擬真視窗 -->
+          <div id="preview-fb-box" class="bg-white border rounded-xl shadow-sm overflow-hidden">
+            <div class="p-3.5 flex items-center justify-between border-b">
+              <div class="flex items-center space-x-3">
+                <div id="fbAvatarContainer" class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shadow-sm text-white">
+                  IS
+                </div>
+                <div>
+                  <div class="font-bold text-sm text-slate-900 flex items-center space-x-1">
+                    <span id="fbBrandName">采威國際 ISCOM</span>
+                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-blue-500 fill-blue-500"></i>
+                  </div>
+                  <div class="text-[11px] text-slate-400 flex items-center space-x-1">
+                    <span id="fbTimeText">預計發布：2026-09-15 15:30</span>·<i data-lucide="globe" class="w-3 h-3"></i>
+                  </div>
+                </div>
+              </div>
+              <i data-lucide="more-horizontal" class="text-slate-400 w-5 h-5"></i>
+            </div>
+            <div class="p-3.5 text-sm text-slate-900 whitespace-pre-wrap leading-relaxed" id="fbPreviewCaption"></div>
+            
+            <!-- FB 完整圖片呈現區 -->
+            <div class="bg-slate-900 border-y relative min-h-[250px] flex items-center justify-center">
+              <div id="fbMainImageContainer" class="w-full flex items-center justify-center">
+                <span class="text-slate-400 text-xs">（尚未上傳圖片）</span>
+              </div>
+            </div>
+            <!-- FB 多圖縮圖導覽列 -->
+            <div id="fbThumbnailsRow" class="p-2 bg-slate-100 flex items-center space-x-2 overflow-x-auto custom-scrollbar border-b hidden"></div>
+            
+            <div class="px-4 py-2 flex items-center justify-between text-xs text-slate-500 border-b">
+              <div class="flex items-center space-x-1">
+                <span class="bg-blue-500 text-white p-0.5 rounded-full"><i data-lucide="thumbs-up" class="w-2.5 h-2.5"></i></span>
+                <span>讚 128</span>
+              </div>
+              <div>留言 24 則 · 分享 8 次</div>
+            </div>
+            <div class="grid grid-cols-3 py-1.5 text-center text-xs text-slate-600 font-semibold border-t">
+              <button class="py-1 hover:bg-slate-50 flex items-center justify-center space-x-1"><i data-lucide="thumbs-up" class="w-4 h-4"></i><span>讚</span></button>
+              <button class="py-1 hover:bg-slate-50 flex items-center justify-center space-x-1"><i data-lucide="message-square" class="w-4 h-4"></i><span>留言</span></button>
+              <button class="py-1 hover:bg-slate-50 flex items-center justify-center space-x-1"><i data-lucide="share-2" class="w-4 h-4"></i><span>分享</span></button>
+            </div>
+          </div>
+
+          <!-- IG 擬真視窗 -->
+          <div id="preview-ig-box" class="bg-white border rounded-xl shadow-sm overflow-hidden hidden">
+            <div class="p-3 flex items-center justify-between border-b">
+              <div class="flex items-center space-x-2.5">
+                <div id="igAvatarOuter" class="w-8 h-8 rounded-full p-[2px] bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600">
+                  <div class="w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold text-white" id="igAvatarBox">
+                    IS
+                  </div>
+                </div>
+                <span class="text-xs font-bold text-slate-900" id="igBrandHandle">iscom_official</span>
+              </div>
+              <i data-lucide="more-horizontal" class="text-slate-500 w-4 h-4"></i>
+            </div>
+
+            <!-- IG 完整圖片呈現與 Slider -->
+            <div class="relative group bg-slate-900 aspect-square flex items-center justify-center overflow-hidden">
+              <div id="igImageContainer" class="w-full h-full flex items-center justify-center">
+                <span class="text-slate-400 text-xs">（尚未上傳圖片）</span>
+              </div>
+              <button onclick="prevIgSlide()" id="igPrevBtn" class="hidden absolute left-2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+              <button onclick="nextIgSlide()" id="igNextBtn" class="hidden absolute right-2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+              <span id="igPageBadge" class="hidden absolute top-3 right-3 bg-black/70 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">1/1</span>
+            </div>
+
+            <!-- IG 多圖縮圖導覽列 -->
+            <div id="igThumbnailsRow" class="p-2 bg-slate-100 flex items-center space-x-2 overflow-x-auto custom-scrollbar border-b hidden"></div>
+
+            <div class="p-3.5 space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3 text-slate-800">
+                  <i data-lucide="heart" class="w-5 h-5"></i>
+                  <i data-lucide="message-circle" class="w-5 h-5"></i>
+                  <i data-lucide="send" class="w-5 h-5"></i>
+                </div>
+                <div id="igDotsContainer" class="flex items-center space-x-1"></div>
+                <i data-lucide="bookmark" class="w-5 h-5 text-slate-800"></i>
+              </div>
+              <div class="text-xs font-bold text-slate-900">96 次按讚</div>
+              <div class="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                <span class="font-bold mr-1" id="igCaptionHandle">iscom_official</span>
+                <span id="igPreviewCaption"></span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 頁籤 2: 內容庫 -->
+    <div id="tab-library" class="hidden space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-800">社群內容庫</h1>
+          <p class="text-slate-500 text-sm mt-1">檢視與管理所有草稿、審核中與已發布貼文。</p>
+        </div>
+        <button onclick="startNewPost()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center space-x-1">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>新建貼文</span>
+        </button>
+      </div>
+
+      <div class="bg-white rounded-xl border overflow-hidden shadow-sm">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-slate-50 text-xs font-semibold text-slate-500 border-b">
+            <tr>
+              <th class="p-4">貼文標題</th>
+              <th class="p-4">品牌</th>
+              <th class="p-4">平台</th>
+              <th class="p-4">預定發布時間</th>
+              <th class="p-4">狀態</th>
+              <th class="p-4">主管審核意見</th>
+              <th class="p-4 text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 text-sm text-slate-700" id="libraryTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 頁籤 3: 待審核內容 -->
+    <div id="tab-review" class="hidden space-y-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">主管審核專區</h1>
+        <p class="text-slate-500 text-sm mt-1">主管可在此預覽並審核專員提交的貼文內容。</p>
+      </div>
+      <div id="reviewListContainer" class="space-y-4"></div>
+    </div>
+
+    <!-- 頁籤 4: 月曆排程 -->
+    <div id="tab-calendar" class="hidden space-y-6">
+      <div class="flex items-center justify-between bg-white p-4 rounded-xl border shadow-sm">
+        <div class="flex items-center space-x-4">
+          <h1 class="text-xl font-bold text-slate-800" id="calendarMonthTitle">2026 年 9 月</h1>
+          <div class="flex items-center space-x-2">
+            <button onclick="changeMonth(-1)" class="p-1.5 border rounded-lg hover:bg-slate-50"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+            <button onclick="changeMonth(1)" class="p-1.5 border rounded-lg hover:bg-slate-50"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+          </div>
+        </div>
+        
+        <div class="flex items-center space-x-3">
+          <select id="calendarYearSelect" onchange="renderCalendar()" class="px-3 py-1.5 border rounded-lg text-sm font-semibold">
+            <option value="2025">2025 年</option>
+            <option value="2026" selected>2026 年</option>
+            <option value="2027">2027 年</option>
+          </select>
+          <select id="calendarMonthSelect" onchange="renderCalendar()" class="px-3 py-1.5 border rounded-lg text-sm font-semibold">
+            <option value="0">1 月</option><option value="1">2 月</option><option value="2">3 月</option>
+            <option value="3">4 月</option><option value="4">5 月</option><option value="5">6 月</option>
+            <option value="6">7 月</option><option value="7">8 月</option><option value="8" selected>9 月</option>
+            <option value="9">10 月</option><option value="10">11 月</option><option value="11">12 月</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl border shadow-sm">
+        <div class="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-500 mb-2">
+          <div class="py-2 bg-slate-50 rounded">週日</div><div class="py-2 bg-slate-50 rounded">週一</div>
+          <div class="py-2 bg-slate-50 rounded">週二</div><div class="py-2 bg-slate-50 rounded">週三</div>
+          <div class="py-2 bg-slate-50 rounded">週四</div><div class="py-2 bg-slate-50 rounded">週五</div>
+          <div class="py-2 bg-slate-50 rounded">週六</div>
+        </div>
+        <div class="grid grid-cols-7 gap-2 text-left" id="calendarGrid"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 主管審核原因輸入視窗 (Modal) -->
+  <div id="reviewModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-xl shadow-xl border w-full max-w-md p-6 space-y-4">
+      <h3 class="text-lg font-bold text-slate-800" id="modalTitle">審核確認</h3>
+      <p class="text-xs text-slate-500" id="modalSubtitle">請確認是否通過此貼文，並可填寫給專員的意見（選填）。</p>
+      
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">審核意見 / 退回原因 (選填)</label>
+        <textarea id="reviewCommentInput" rows="3" class="w-full p-3 border rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="輸入給專員的建議或退回原因..."></textarea>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-2">
+        <button onclick="closeReviewModal()" class="px-4 py-2 border rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50">取消</button>
+        <button id="modalConfirmBtn" onclick="submitReviewAction()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700">確認送出</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    // 記憶體貼文資料庫
+    let postsDB = [
+      {
+        id: "post-1",
+        internalTitle: "【2026 ESG】AI 智慧碳盤查系統線上發表會",
+        brands: ["采威國際 ISCOM"],
+        platforms: ["FB", "IG"],
+        fbCaption: "🚀 采威國際 ISCloud 360 企業數位轉型新利器！\n面對淨零碳排趨勢，您的企業準備好了嗎？\n\n我們將於本週開辦「AI 智慧碳盤查與 ESG 永續管理線上研討會」！",
+        igCaption: "🚀 采威國際 ISCloud 360 企業數位轉型新利器！\n面對淨零碳排趨勢，您的企業準備好了嗎？\n\n我們將於本週開辦「AI 智慧碳盤查與 ESG 永續管理線上研討會」！",
+        sameCaption: true,
+        images: [
+          "https://picsum.photos/id/1/800/600",
+          "https://picsum.photos/id/180/800/600",
+          "https://picsum.photos/id/119/800/600"
+        ],
+        scheduleDate: "2026-09-15",
+        scheduleTime: "15:30",
+        status: "APPROVED",
+        reviewComment: "文案與大圖呈現清晰，審核通過！"
+      }
+    ];
+
+    let currentEditingImages = [
+      "https://picsum.photos/id/1/800/600",
+      "https://picsum.photos/id/180/800/600",
+      "https://picsum.photos/id/119/800/600"
+    ];
+    let currentFbImageIndex = 0;
+    let currentIgIndex = 0;
+    let currentYear = 2026;
+    let currentMonth = 8;
+    let pendingReviewPostId = null;
+    let pendingReviewStatus = null;
+
+    // 頁籤切換
+    function switchTab(tabName) {
+      ['create', 'library', 'review', 'calendar'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        document.getElementById(`nav-${t}`).className = 'px-4 py-2 rounded-md font-medium text-sm transition-colors text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2';
+      });
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      document.getElementById(`nav-${tabName}`).className = 'px-4 py-2 rounded-md font-medium text-sm transition-colors bg-blue-600 text-white flex items-center space-x-2';
+
+      if (tabName === 'library') renderLibraryTable();
+      if (tabName === 'review') renderReviewList();
+      if (tabName === 'calendar') renderCalendar();
+      updateBadges();
+    }
+
+    function startNewPost(targetDate) {
+      document.getElementById('editingPostId').value = '';
+      document.getElementById('form-title').innerText = '建立新社群貼文';
+      document.getElementById('internalTitle').value = '';
+      document.getElementById('fbCaption').value = '';
+      document.getElementById('igCaption').value = '';
+      document.getElementById('scheduleDate').value = targetDate || '2026-09-15';
+      currentEditingImages = [];
+      currentFbImageIndex = 0;
+      currentIgIndex = 0;
+      document.getElementById('currentStatusText').innerText = '草稿';
+      renderImageList();
+      updatePreviews();
+      switchTab('create');
+    }
+
+    function editPost(id) {
+      const post = postsDB.find(p => p.id === id);
+      if (!post) return;
+
+      document.getElementById('editingPostId').value = post.id;
+      document.getElementById('form-title').innerText = `編輯貼文：${post.internalTitle}`;
+      document.getElementById('internalTitle').value = post.internalTitle;
+      document.getElementById('brandISCOM').checked = post.brands.includes('采威國際 ISCOM');
+      document.getElementById('brandISCloud').checked = post.brands.includes('ISCloud 360');
+      document.getElementById('platformFB').checked = post.platforms.includes('FB');
+      document.getElementById('platformIG').checked = post.platforms.includes('IG');
+      document.getElementById('fbCaption').value = post.fbCaption;
+      document.getElementById('igCaption').value = post.igCaption;
+      document.getElementById('scheduleDate').value = post.scheduleDate;
+      document.getElementById('scheduleTime').value = post.scheduleTime;
+      
+      const statusMap = { DRAFT: '草稿', PENDING: '待審核', APPROVED: '已核准', REJECTED: '退回修改' };
+      document.getElementById('currentStatusText').innerText = statusMap[post.status] || post.status;
+
+      currentEditingImages = [...post.images];
+      currentFbImageIndex = 0;
+      currentIgIndex = 0;
+
+      renderImageList();
+      updatePreviews();
+      switchTab('create');
+    }
+
+    function savePost(newStatus) {
+      const id = document.getElementById('editingPostId').value || `post-${Date.now()}`;
+      const title = document.getElementById('internalTitle').value.trim();
+      
+      if (!title) { alert('請填寫內部貼文標題！'); return; }
+
+      const brands = [];
+      if (document.getElementById('brandISCOM').checked) brands.push('采威國際 ISCOM');
+      if (document.getElementById('brandISCloud').checked) brands.push('ISCloud 360');
+
+      const platforms = [];
+      if (document.getElementById('platformFB').checked) platforms.push('FB');
+      if (document.getElementById('platformIG').checked) platforms.push('IG');
+
+      const postData = {
+        id,
+        internalTitle: title,
+        brands,
+        platforms,
+        fbCaption: document.getElementById('fbCaption').value,
+        igCaption: document.getElementById('igCaption').value,
+        sameCaption: document.getElementById('sameCaptionToggle').checked,
+        images: [...currentEditingImages],
+        scheduleDate: document.getElementById('scheduleDate').value,
+        scheduleTime: document.getElementById('scheduleTime').value,
+        status: newStatus,
+        reviewComment: ''
+      };
+
+      const existingIdx = postsDB.findIndex(p => p.id === id);
+      if (existingIdx >= 0) postsDB[existingIdx] = postData;
+      else postsDB.push(postData);
+
+      alert(newStatus === 'DRAFT' ? '已儲存為草稿！' : '貼文已送出給主管審核！');
+      switchTab('library');
+    }
+
+    function deletePost(id) {
+      if (confirm('確定要刪除這篇貼文嗎？')) {
+        postsDB = postsDB.filter(p => p.id !== id);
+        renderLibraryTable();
+        renderReviewList();
+        renderCalendar();
+        updateBadges();
+      }
+    }
+
+    function deleteCurrentPost() {
+      const id = document.getElementById('editingPostId').value;
+      if (id) deletePost(id);
+      else resetForm();
+    }
+
+    function resetForm() { startNewPost(); }
+
+    function toggleSameCaption() {
+      if (document.getElementById('sameCaptionToggle').checked) {
+        document.getElementById('igCaption').value = document.getElementById('fbCaption').value;
+        document.getElementById('igCaptionBox').classList.add('hidden');
+      } else {
+        document.getElementById('igCaptionBox').classList.remove('hidden');
+      }
+      updatePreviews();
+    }
+
+    function handleCaptionInput(p) {
+      if (document.getElementById('sameCaptionToggle').checked) {
+        document.getElementById('igCaption').value = document.getElementById('fbCaption').value;
+      }
+      updatePreviews();
+    }
+
+    function handleFileUpload(e) {
+      const files = Array.from(e.target.files);
+      if (currentEditingImages.length + files.length > 10) { alert('最多上傳 10 張圖片！'); return; }
+      files.forEach(f => {
+        const r = new FileReader();
+        r.onload = (ex) => { 
+          currentEditingImages.push(ex.target.result); 
+          renderImageList(); 
+          updatePreviews(); 
+        };
+        r.readAsDataURL(f);
+      });
+    }
+
+    function renderImageList() {
+      const box = document.getElementById('imageList');
+      document.getElementById('imageCount').innerText = currentEditingImages.length;
+      box.innerHTML = '';
+      currentEditingImages.forEach((img, i) => {
+        box.innerHTML += `
+          <div class="relative group aspect-square bg-slate-100 rounded-lg overflow-hidden border">
+            <img src="${img}" class="w-full h-full object-cover">
+            <button onclick="removeImg(${i})" class="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full"><i data-lucide="x" class="w-3 h-3"></i></button>
+          </div>
+        `;
+      });
+      lucide.createIcons();
+    }
+
+    function removeImg(i) {
+      currentEditingImages.splice(i, 1);
+      if (currentFbImageIndex >= currentEditingImages.length) currentFbImageIndex = Math.max(0, currentEditingImages.length - 1);
+      if (currentIgIndex >= currentEditingImages.length) currentIgIndex = Math.max(0, currentEditingImages.length - 1);
+      renderImageList();
+      updatePreviews();
+    }
+
+    // 更新擬真畫面（大頭貼獨立分開）
+    function updatePreviews() {
+      const fbCaption = document.getElementById('fbCaption').value;
+      const igCaption = document.getElementById('igCaption').value;
+      document.getElementById('fbPreviewCaption').innerText = fbCaption;
+      document.getElementById('igPreviewCaption').innerText = igCaption;
+
+      const iscom = document.getElementById('brandISCOM').checked;
+      const iscloud = document.getElementById('brandISCloud').checked;
+
+      const fbAvatar = document.getElementById('fbAvatarContainer');
+      const igAvatarBox = document.getElementById('igAvatarBox');
+      let brandText = '';
+      let handleText = '';
+
+      if (iscom && iscloud) {
+        brandText = '采威國際 ISCOM / ISCloud 360';
+        handleText = 'iscom_iscloud360';
+        fbAvatar.className = 'w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shadow-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white';
+        fbAvatar.innerText = 'IS+360';
+
+        igAvatarBox.className = 'w-full h-full rounded-full flex items-center justify-center text-[9px] font-bold bg-indigo-600 text-white';
+        igAvatarBox.innerText = 'IS+360';
+      } else if (iscloud) {
+        brandText = 'ISCloud 360 雲端服務中心';
+        handleText = 'iscloud360_official';
+        fbAvatar.className = 'w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shadow-sm bg-gradient-to-tr from-amber-500 to-purple-600 text-white';
+        fbAvatar.innerText = '360';
+
+        igAvatarBox.className = 'w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold bg-purple-600 text-white';
+        igAvatarBox.innerText = '360';
+      } else {
+        brandText = '采威國際 ISCOM';
+        handleText = 'iscom_official';
+        fbAvatar.className = 'w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shadow-sm bg-blue-600 text-white';
+        fbAvatar.innerText = 'ISCOM';
+
+        igAvatarBox.className = 'w-full h-full rounded-full flex items-center justify-center text-[9px] font-bold bg-blue-600 text-white';
+        igAvatarBox.innerText = 'ISCOM';
+      }
+
+      document.getElementById('fbBrandName').innerText = brandText;
+      document.getElementById('igBrandHandle').innerText = handleText;
+      document.getElementById('igCaptionHandle').innerText = handleText;
+
+      renderFbPreview();
+      renderIgCarousel();
+    }
+
+    function renderFbPreview() {
+      const fbMainContainer = document.getElementById('fbMainImageContainer');
+      const fbThumbRow = document.getElementById('fbThumbnailsRow');
+      const imgs = currentEditingImages;
+
+      if (imgs.length === 0) {
+        fbMainContainer.innerHTML = `<span class="text-slate-400 text-xs py-10">（尚未上傳圖片）</span>`;
+        fbThumbRow.classList.add('hidden');
+        return;
+      }
+
+      if (currentFbImageIndex >= imgs.length) currentFbImageIndex = 0;
+
+      fbMainContainer.innerHTML = `<img src="${imgs[currentFbImageIndex]}" class="max-h-[420px] w-full object-contain">`;
+
+      if (imgs.length > 1) {
+        fbThumbRow.classList.remove('hidden');
+        fbThumbRow.innerHTML = '';
+        imgs.forEach((img, i) => {
+          fbThumbRow.innerHTML += `
+            <button onclick="setFbImage(${i})" class="relative flex-shrink-0 w-14 h-14 rounded-md overflow-hidden border-2 ${i === currentFbImageIndex ? 'border-blue-600 ring-2 ring-blue-300' : 'border-transparent opacity-70 hover:opacity-100'}">
+              <img src="${img}" class="w-full h-full object-cover">
+              <span class="absolute bottom-0 right-0 bg-black/70 text-white text-[9px] px-1 font-bold rounded-tl">${i + 1}</span>
+            </button>
+          `;
+        });
+      } else {
+        fbThumbRow.classList.add('hidden');
+      }
+    }
+
+    function setFbImage(idx) {
+      currentFbImageIndex = idx;
+      renderFbPreview();
+    }
+
+    function renderIgCarousel() {
+      const container = document.getElementById('igImageContainer');
+      const prevBtn = document.getElementById('igPrevBtn');
+      const nextBtn = document.getElementById('igNextBtn');
+      const badge = document.getElementById('igPageBadge');
+      const dots = document.getElementById('igDotsContainer');
+      const igThumbRow = document.getElementById('igThumbnailsRow');
+
+      const imgs = currentEditingImages;
+      if (imgs.length === 0) {
+        container.innerHTML = `<span class="text-slate-400 text-xs">（尚未上傳圖片）</span>`;
+        prevBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); badge.classList.add('hidden');
+        dots.innerHTML = '';
+        igThumbRow.classList.add('hidden');
+        return;
+      }
+
+      if (currentIgIndex >= imgs.length) currentIgIndex = 0;
+
+      container.innerHTML = `<img src="${imgs[currentIgIndex]}" class="w-full h-full object-cover">`;
+
+      if (imgs.length > 1) {
+        prevBtn.classList.toggle('hidden', currentIgIndex === 0);
+        nextBtn.classList.toggle('hidden', currentIgIndex === imgs.length - 1);
+        badge.classList.remove('hidden');
+        badge.innerText = `${currentIgIndex + 1}/${imgs.length}`;
+
+        dots.innerHTML = '';
+        imgs.forEach((_, i) => {
+          dots.innerHTML += `<div class="w-1.5 h-1.5 rounded-full ${i === currentIgIndex ? 'bg-blue-500' : 'bg-slate-300'}"></div>`;
+        });
+
+        igThumbRow.classList.remove('hidden');
+        igThumbRow.innerHTML = '';
+        imgs.forEach((img, i) => {
+          igThumbRow.innerHTML += `
+            <button onclick="setIgImage(${i})" class="relative flex-shrink-0 w-12 h-12 rounded-md overflow-hidden border-2 ${i === currentIgIndex ? 'border-pink-500 ring-2 ring-pink-200' : 'border-transparent opacity-60 hover:opacity-100'}">
+              <img src="${img}" class="w-full h-full object-cover">
+            </button>
+          `;
+        });
+      } else {
+        prevBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); badge.classList.add('hidden');
+        dots.innerHTML = '';
+        igThumbRow.classList.add('hidden');
+      }
+    }
+
+    function setIgImage(idx) {
+      currentIgIndex = idx;
+      renderIgCarousel();
+    }
+
+    function prevIgSlide() { if (currentIgIndex > 0) { currentIgIndex--; renderIgCarousel(); } }
+    function nextIgSlide() { if (currentIgIndex < currentEditingImages.length - 1) { currentIgIndex++; renderIgCarousel(); } }
+
+    function switchPreviewTab(p) {
+      if (p === 'fb') {
+        document.getElementById('preview-fb-box').classList.remove('hidden');
+        document.getElementById('preview-ig-box').classList.add('hidden');
+        document.getElementById('preview-tab-fb').className = 'px-3 py-1 text-xs font-bold rounded-md bg-white text-blue-600 shadow-sm flex items-center space-x-1';
+        document.getElementById('preview-tab-ig').className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-600 flex items-center space-x-1';
+      } else {
+        document.getElementById('preview-fb-box').classList.add('hidden');
+        document.getElementById('preview-ig-box').classList.remove('hidden');
+        document.getElementById('preview-tab-ig').className = 'px-3 py-1 text-xs font-bold rounded-md bg-white text-pink-600 shadow-sm flex items-center space-x-1';
+        document.getElementById('preview-tab-fb').className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-600 flex items-center space-x-1';
+      }
+    }
+
+    // 渲染內容庫
+    function renderLibraryTable() {
+      const body = document.getElementById('libraryTableBody');
+      body.innerHTML = '';
+      if (postsDB.length === 0) {
+        body.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-slate-400">尚無貼文資料</td></tr>';
+        return;
+      }
+      postsDB.forEach(p => {
+        const statusMap = {
+          DRAFT: '<span class="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-bold">草稿</span>',
+          PENDING: '<span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold">待審核</span>',
+          APPROVED: '<span class="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full font-bold">已核准</span>',
+          REJECTED: '<span class="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-full font-bold">退回修改</span>'
+        };
+        body.innerHTML += `
+          <tr class="hover:bg-slate-50">
+            <td class="p-4 font-semibold text-slate-800">${p.internalTitle}</td>
+            <td class="p-4"><span class="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded border border-blue-200">${p.brands.join(', ')}</span></td>
+            <td class="p-4 text-xs font-bold">${p.platforms.join(', ')}</td>
+            <td class="p-4 text-slate-500">${p.scheduleDate} ${p.scheduleTime}</td>
+            <td class="p-4">${statusMap[p.status] || p.status}</td>
+            <td class="p-4 text-xs text-slate-500 max-w-xs truncate">${p.reviewComment || '-'}</td>
+            <td class="p-4 text-right space-x-2">
+              <button onclick="editPost('${p.id}')" class="text-blue-600 hover:underline text-xs font-semibold">編輯</button>
+              <button onclick="deletePost('${p.id}')" class="text-red-500 hover:underline text-xs font-semibold">刪除</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    // 主管審核列表
+    function renderReviewList() {
+      const box = document.getElementById('reviewListContainer');
+      box.innerHTML = '';
+      const pendingPosts = postsDB.filter(p => p.status === 'PENDING');
+      if (pendingPosts.length === 0) {
+        box.innerHTML = '<div class="bg-white p-8 text-center text-slate-400 rounded-xl border">目前沒有等待審核的貼文</div>';
+        return;
+      }
+      pendingPosts.forEach(p => {
+        box.innerHTML += `
+          <div class="bg-white p-6 rounded-xl border shadow-sm space-y-4">
+            <div class="flex justify-between items-start border-b pb-4">
+              <div>
+                <span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold">待審核</span>
+                <h3 class="text-lg font-bold text-slate-800 mt-2">${p.internalTitle}</h3>
+                <p class="text-xs text-slate-400 mt-0.5">預定時間：${p.scheduleDate} ${p.scheduleTime}</p>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onclick="openReviewModal('${p.id}', 'REJECTED')" class="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-semibold">退回</button>
+                <button onclick="openReviewModal('${p.id}', 'APPROVED')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold">審核通過</button>
+              </div>
+            </div>
+            <p class="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-lg">${p.fbCaption || p.igCaption}</p>
+          </div>
+        `;
+      });
+    }
+
+    // 審核 Modal 控制
+    function openReviewModal(id, st) {
+      pendingReviewPostId = id;
+      pendingReviewStatus = st;
+      document.getElementById('modalTitle').innerText = st === 'APPROVED' ? '核准貼文發布' : '退回貼文修改';
+      document.getElementById('modalSubtitle').innerText = st === 'APPROVED' ? '確定要核准此貼文嗎？核准後將會排入月曆排程：' : '請填寫退回給專員的修改建議（選填）：';
+      document.getElementById('reviewCommentInput').value = '';
+      document.getElementById('reviewModal').classList.remove('hidden');
+    }
+
+    function closeReviewModal() {
+      document.getElementById('reviewModal').classList.add('hidden');
+    }
+
+    function submitReviewAction() {
+      const p = postsDB.find(x => x.id === pendingReviewPostId);
+      if (p) {
+        p.status = pendingReviewStatus;
+        p.reviewComment = document.getElementById('reviewCommentInput').value.trim();
+        closeReviewModal();
+        renderReviewList();
+        renderCalendar(); // 狀態改變後同步更新月曆
+        updateBadges();
+        alert(pendingReviewStatus === 'APPROVED' ? '已通過審核！貼文已正式排入月曆。' : '已退回貼文。');
+      }
+    }
+
+    // 關鍵修復：月曆渲染（僅限已核准 APPROVED 貼文）
+    function renderCalendar() {
+      currentYear = parseInt(document.getElementById('calendarYearSelect').value);
+      currentMonth = parseInt(document.getElementById('calendarMonthSelect').value);
+      document.getElementById('calendarMonthTitle').innerText = `${currentYear} 年 ${currentMonth + 1} 月`;
+
+      const grid = document.getElementById('calendarGrid');
+      grid.innerHTML = '';
+
+      const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+      for (let i = 0; i < firstDay; i++) {
+        grid.innerHTML += `<div class="h-28 border border-slate-100 bg-slate-50/50 rounded"></div>`;
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        
+        // ✨ Bug 核心修復點：只篩選出「日期相符」而且「主管已核准 (APPROVED)」的貼文
+        const dayPosts = postsDB.filter(p => p.scheduleDate === dateStr && p.status === 'APPROVED');
+
+        let postsHTML = '';
+        dayPosts.forEach(p => {
+          postsHTML += `
+            <div onclick="editPost('${p.id}'); event.stopPropagation();" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 p-1 rounded text-[10px] mt-1 font-semibold truncate cursor-pointer flex items-center justify-between">
+              <span class="truncate">${p.scheduleTime} ${p.internalTitle}</span>
+              <span class="bg-emerald-600 text-white text-[8px] px-1 rounded-sm ml-0.5 flex-shrink-0">已核准</span>
+            </div>
+          `;
+        });
+
+        grid.innerHTML += `
+          <div onclick="startNewPost('${dateStr}')" class="h-28 border border-slate-200 bg-white p-1.5 rounded text-left hover:border-blue-400 cursor-pointer transition-colors overflow-y-auto custom-scrollbar">
+            <span class="text-xs font-bold text-slate-700">${day}</span>
+            ${postsHTML}
+          </div>
+        `;
+      }
+    }
+
+    function changeMonth(delta) {
+      let m = currentMonth + delta;
+      let y = currentYear;
+      if (m < 0) { m = 11; y--; }
+      if (m > 11) { m = 0; y++; }
+      document.getElementById('calendarYearSelect').value = y;
+      document.getElementById('calendarMonthSelect').value = m;
+      renderCalendar();
+    }
+
+    function updateBadges() {
+      const pendingCount = postsDB.filter(p => p.status === 'PENDING').length;
+      document.getElementById('reviewCountBadge').innerText = pendingCount;
+    }
+
+    // 初始化
+    renderImageList();
+    updatePreviews();
+    updateBadges();
+  </script>
+
+</body>
+</html>
