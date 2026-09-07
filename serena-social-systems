@@ -178,11 +178,11 @@
           <div class="pt-3 border-t grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">預定發布日期</label>
-              <input type="date" id="scheduleDate" value="2026-09-15" class="w-full px-3 py-2 border rounded-lg text-sm">
+              <input type="date" id="scheduleDate" value="2026-09-15" class="w-full px-3 py-2 border rounded-lg text-sm" onchange="updatePreviews()">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">預定發布時間</label>
-              <input type="time" id="scheduleTime" value="15:30" class="w-full px-3 py-2 border rounded-lg text-sm">
+              <input type="time" id="scheduleTime" value="15:30" class="w-full px-3 py-2 border rounded-lg text-sm" onchange="updatePreviews()">
             </div>
           </div>
 
@@ -223,7 +223,7 @@
           <div id="preview-fb-box" class="bg-white border rounded-xl shadow-sm overflow-hidden">
             <div class="p-3.5 flex items-center justify-between border-b">
               <div class="flex items-center space-x-3">
-                <div id="fbAvatarContainer" class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shadow-sm text-white">
+                <div id="fbAvatarContainer" class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shadow-sm text-white bg-blue-600">
                   IS
                 </div>
                 <div>
@@ -268,7 +268,7 @@
             <div class="p-3 flex items-center justify-between border-b">
               <div class="flex items-center space-x-2.5">
                 <div id="igAvatarOuter" class="w-8 h-8 rounded-full p-[2px] bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600">
-                  <div class="w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold text-white" id="igAvatarBox">
+                  <div class="w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold text-white bg-slate-800" id="igAvatarBox">
                     IS
                   </div>
                 </div>
@@ -413,8 +413,11 @@
   <script>
     lucide.createIcons();
 
-    // 記憶體貼文資料庫
-    let postsDB = [
+    // 建立 BroadcastChannel 廣播頻道，實現跨視窗/分頁同步
+    const syncChannel = new BroadcastChannel('iscom_social_sync_channel');
+
+    // 預設預設資料
+    const defaultPosts = [
       {
         id: "post-1",
         internalTitle: "【2026 ESG】AI 智慧碳盤查系統線上發表會",
@@ -435,6 +438,48 @@
       }
     ];
 
+    // 初始化讀取 localData 儲存空間
+    let postsDB = loadPostsFromStorage();
+
+    function loadPostsFromStorage() {
+      const stored = localStorage.getItem('iscom_posts_db');
+      if (stored) {
+        try { return JSON.parse(stored); } catch(e) { console.error(e); }
+      }
+      localStorage.setItem('iscom_posts_db', JSON.stringify(defaultPosts));
+      return defaultPosts;
+    }
+
+    // 當本地更新資料時，觸發儲存與跨頁面廣播通知
+    function savePostsToStorageAndNotify() {
+      localStorage.setItem('iscom_posts_db', JSON.stringify(postsDB));
+      syncChannel.postMessage({ type: 'DATA_UPDATED' });
+    }
+
+    // 監聽廣播頻道：當其他分頁修改資料時自動更新
+    syncChannel.onmessage = (event) => {
+      if (event.data && event.data.type === 'DATA_UPDATED') {
+        postsDB = loadPostsFromStorage();
+        refreshAllViews();
+      }
+    };
+
+    // 監聽原生的 storage 事件（補充相容性）
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'iscom_posts_db') {
+        postsDB = loadPostsFromStorage();
+        refreshAllViews();
+      }
+    });
+
+    function refreshAllViews() {
+      renderLibraryTable();
+      renderReviewList();
+      renderCalendar();
+      updateBadges();
+      lucide.createIcons();
+    }
+
     let currentEditingImages = [
       "https://picsum.photos/id/1/800/600",
       "https://picsum.photos/id/180/800/600",
@@ -443,7 +488,7 @@
     let currentFbImageIndex = 0;
     let currentIgIndex = 0;
     let currentYear = 2026;
-    let currentMonth = 8;
+    let currentMonth = 8; // 0 代表 1 月，8 代表 9 月
     let pendingReviewPostId = null;
     let pendingReviewStatus = null;
 
@@ -456,10 +501,7 @@
       document.getElementById(`tab-${tabName}`).classList.remove('hidden');
       document.getElementById(`nav-${tabName}`).className = 'px-4 py-2 rounded-md font-medium text-sm transition-colors bg-blue-600 text-white flex items-center space-x-2';
 
-      if (tabName === 'library') renderLibraryTable();
-      if (tabName === 'review') renderReviewList();
-      if (tabName === 'calendar') renderCalendar();
-      updateBadges();
+      refreshAllViews();
     }
 
     function startNewPost(targetDate) {
@@ -526,7 +568,7 @@
         brands,
         platforms,
         fbCaption: document.getElementById('fbCaption').value,
-        igCaption: document.getElementById('igCaption').value,
+        igCaption: document.getElementById('sameCaptionToggle').checked ? document.getElementById('fbCaption').value : document.getElementById('igCaption').value,
         sameCaption: document.getElementById('sameCaptionToggle').checked,
         images: [...currentEditingImages],
         scheduleDate: document.getElementById('scheduleDate').value,
@@ -539,6 +581,7 @@
       if (existingIdx >= 0) postsDB[existingIdx] = postData;
       else postsDB.push(postData);
 
+      savePostsToStorageAndNotify();
       alert(newStatus === 'DRAFT' ? '已儲存為草稿！' : '貼文已送出給主管審核！');
       switchTab('library');
     }
@@ -546,10 +589,8 @@
     function deletePost(id) {
       if (confirm('確定要刪除這篇貼文嗎？')) {
         postsDB = postsDB.filter(p => p.id !== id);
-        renderLibraryTable();
-        renderReviewList();
-        renderCalendar();
-        updateBadges();
+        savePostsToStorageAndNotify();
+        refreshAllViews();
       }
     }
 
@@ -572,7 +613,7 @@
     }
 
     function handleCaptionInput(p) {
-      if (document.getElementById('sameCaptionToggle').checked) {
+      if (p === 'fb' && document.getElementById('sameCaptionToggle').checked) {
         document.getElementById('igCaption').value = document.getElementById('fbCaption').value;
       }
       updatePreviews();
@@ -580,263 +621,262 @@
 
     function handleFileUpload(e) {
       const files = Array.from(e.target.files);
-      if (currentEditingImages.length + files.length > 10) { alert('最多上傳 10 張圖片！'); return; }
-      files.forEach(f => {
-        const r = new FileReader();
-        r.onload = (ex) => { 
-          currentEditingImages.push(ex.target.result); 
-          renderImageList(); 
-          updatePreviews(); 
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          if (currentEditingImages.length < 10) {
+            currentEditingImages.push(evt.target.result);
+            renderImageList();
+            updatePreviews();
+          }
         };
-        r.readAsDataURL(f);
+        reader.readAsDataURL(file);
       });
     }
 
-    function renderImageList() {
-      const box = document.getElementById('imageList');
-      document.getElementById('imageCount').innerText = currentEditingImages.length;
-      box.innerHTML = '';
-      currentEditingImages.forEach((img, i) => {
-        box.innerHTML += `
-          <div class="relative group aspect-square bg-slate-100 rounded-lg overflow-hidden border">
-            <img src="${img}" class="w-full h-full object-cover">
-            <button onclick="removeImg(${i})" class="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full"><i data-lucide="x" class="w-3 h-3"></i></button>
-          </div>
-        `;
-      });
-      lucide.createIcons();
-    }
-
-    function removeImg(i) {
-      currentEditingImages.splice(i, 1);
+    function removeImage(idx) {
+      currentEditingImages.splice(idx, 1);
       if (currentFbImageIndex >= currentEditingImages.length) currentFbImageIndex = Math.max(0, currentEditingImages.length - 1);
       if (currentIgIndex >= currentEditingImages.length) currentIgIndex = Math.max(0, currentEditingImages.length - 1);
       renderImageList();
       updatePreviews();
     }
 
-    // 更新擬真畫面（大頭貼獨立分開）
+    function renderImageList() {
+      document.getElementById('imageCount').innerText = currentEditingImages.length;
+      const list = document.getElementById('imageList');
+      list.innerHTML = '';
+      currentEditingImages.forEach((img, i) => {
+        list.innerHTML += `
+          <div class="relative group aspect-square rounded-lg overflow-hidden border bg-slate-100">
+            <img src="${img}" class="w-full h-full object-cover">
+            <button onclick="removeImage(${i})" class="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5 opacity-80 hover:opacity-100">
+              <i data-lucide="x" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        `;
+      });
+      lucide.createIcons();
+    }
+
     function updatePreviews() {
-      const fbCaption = document.getElementById('fbCaption').value;
-      const igCaption = document.getElementById('igCaption').value;
-      document.getElementById('fbPreviewCaption').innerText = fbCaption;
-      document.getElementById('igPreviewCaption').innerText = igCaption;
+      const fbCap = document.getElementById('fbCaption').value;
+      const igCap = document.getElementById('sameCaptionToggle').checked ? fbCap : document.getElementById('igCaption').value;
 
-      const iscom = document.getElementById('brandISCOM').checked;
-      const iscloud = document.getElementById('brandISCloud').checked;
+      document.getElementById('fbPreviewCaption').innerText = fbCap || '（預覽內容）';
+      document.getElementById('igPreviewCaption').innerText = igCap || '（預覽內容）';
 
-      const fbAvatar = document.getElementById('fbAvatarContainer');
-      const igAvatarBox = document.getElementById('igAvatarBox');
-      let brandText = '';
-      let handleText = '';
+      const dateVal = document.getElementById('scheduleDate').value;
+      const timeVal = document.getElementById('scheduleTime').value;
+      document.getElementById('fbTimeText').innerText = `預計發布：${dateVal} ${timeVal}`;
 
-      if (iscom && iscloud) {
-        brandText = '采威國際 ISCOM / ISCloud 360';
-        handleText = 'iscom_iscloud360';
-        fbAvatar.className = 'w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shadow-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white';
-        fbAvatar.innerText = 'IS+360';
+      // 品牌品牌處理
+      const iscomChecked = document.getElementById('brandISCOM').checked;
+      const iscloudChecked = document.getElementById('brandISCloud').checked;
+      let brandNameText = "采威國際 ISCOM";
+      let brandHandleText = "iscom_official";
 
-        igAvatarBox.className = 'w-full h-full rounded-full flex items-center justify-center text-[9px] font-bold bg-indigo-600 text-white';
-        igAvatarBox.innerText = 'IS+360';
-      } else if (iscloud) {
-        brandText = 'ISCloud 360 雲端服務中心';
-        handleText = 'iscloud360_official';
-        fbAvatar.className = 'w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shadow-sm bg-gradient-to-tr from-amber-500 to-purple-600 text-white';
-        fbAvatar.innerText = '360';
-
-        igAvatarBox.className = 'w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold bg-purple-600 text-white';
-        igAvatarBox.innerText = '360';
-      } else {
-        brandText = '采威國際 ISCOM';
-        handleText = 'iscom_official';
-        fbAvatar.className = 'w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shadow-sm bg-blue-600 text-white';
-        fbAvatar.innerText = 'ISCOM';
-
-        igAvatarBox.className = 'w-full h-full rounded-full flex items-center justify-center text-[9px] font-bold bg-blue-600 text-white';
-        igAvatarBox.innerText = 'ISCOM';
+      if (iscloudChecked && !iscomChecked) {
+        brandNameText = "ISCloud 360";
+        brandHandleText = "iscloud360_official";
+      } else if (iscomChecked && iscloudChecked) {
+        brandNameText = "采威國際 ISCOM / ISCloud 360";
+        brandHandleText = "iscom_iscloud360";
       }
+      
+      document.getElementById('fbBrandName').innerText = brandNameText;
+      document.getElementById('igBrandHandle').innerText = brandHandleText;
+      document.getElementById('igCaptionHandle').innerText = brandHandleText;
 
-      document.getElementById('fbBrandName').innerText = brandText;
-      document.getElementById('igBrandHandle').innerText = handleText;
-      document.getElementById('igCaptionHandle').innerText = handleText;
-
-      renderFbPreview();
-      renderIgCarousel();
+      renderFbImagePreview();
+      renderIgImagePreview();
     }
 
-    function renderFbPreview() {
-      const fbMainContainer = document.getElementById('fbMainImageContainer');
-      const fbThumbRow = document.getElementById('fbThumbnailsRow');
-      const imgs = currentEditingImages;
-
-      if (imgs.length === 0) {
-        fbMainContainer.innerHTML = `<span class="text-slate-400 text-xs py-10">（尚未上傳圖片）</span>`;
-        fbThumbRow.classList.add('hidden');
-        return;
-      }
-
-      if (currentFbImageIndex >= imgs.length) currentFbImageIndex = 0;
-
-      fbMainContainer.innerHTML = `<img src="${imgs[currentFbImageIndex]}" class="max-h-[420px] w-full object-contain">`;
-
-      if (imgs.length > 1) {
-        fbThumbRow.classList.remove('hidden');
-        fbThumbRow.innerHTML = '';
-        imgs.forEach((img, i) => {
-          fbThumbRow.innerHTML += `
-            <button onclick="setFbImage(${i})" class="relative flex-shrink-0 w-14 h-14 rounded-md overflow-hidden border-2 ${i === currentFbImageIndex ? 'border-blue-600 ring-2 ring-blue-300' : 'border-transparent opacity-70 hover:opacity-100'}">
-              <img src="${img}" class="w-full h-full object-cover">
-              <span class="absolute bottom-0 right-0 bg-black/70 text-white text-[9px] px-1 font-bold rounded-tl">${i + 1}</span>
-            </button>
-          `;
-        });
-      } else {
-        fbThumbRow.classList.add('hidden');
-      }
-    }
-
-    function setFbImage(idx) {
-      currentFbImageIndex = idx;
-      renderFbPreview();
-    }
-
-    function renderIgCarousel() {
-      const container = document.getElementById('igImageContainer');
-      const prevBtn = document.getElementById('igPrevBtn');
-      const nextBtn = document.getElementById('igNextBtn');
-      const badge = document.getElementById('igPageBadge');
-      const dots = document.getElementById('igDotsContainer');
-      const igThumbRow = document.getElementById('igThumbnailsRow');
-
-      const imgs = currentEditingImages;
-      if (imgs.length === 0) {
-        container.innerHTML = `<span class="text-slate-400 text-xs">（尚未上傳圖片）</span>`;
-        prevBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); badge.classList.add('hidden');
-        dots.innerHTML = '';
-        igThumbRow.classList.add('hidden');
-        return;
-      }
-
-      if (currentIgIndex >= imgs.length) currentIgIndex = 0;
-
-      container.innerHTML = `<img src="${imgs[currentIgIndex]}" class="w-full h-full object-cover">`;
-
-      if (imgs.length > 1) {
-        prevBtn.classList.toggle('hidden', currentIgIndex === 0);
-        nextBtn.classList.toggle('hidden', currentIgIndex === imgs.length - 1);
-        badge.classList.remove('hidden');
-        badge.innerText = `${currentIgIndex + 1}/${imgs.length}`;
-
-        dots.innerHTML = '';
-        imgs.forEach((_, i) => {
-          dots.innerHTML += `<div class="w-1.5 h-1.5 rounded-full ${i === currentIgIndex ? 'bg-blue-500' : 'bg-slate-300'}"></div>`;
-        });
-
-        igThumbRow.classList.remove('hidden');
-        igThumbRow.innerHTML = '';
-        imgs.forEach((img, i) => {
-          igThumbRow.innerHTML += `
-            <button onclick="setIgImage(${i})" class="relative flex-shrink-0 w-12 h-12 rounded-md overflow-hidden border-2 ${i === currentIgIndex ? 'border-pink-500 ring-2 ring-pink-200' : 'border-transparent opacity-60 hover:opacity-100'}">
-              <img src="${img}" class="w-full h-full object-cover">
-            </button>
-          `;
-        });
-      } else {
-        prevBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); badge.classList.add('hidden');
-        dots.innerHTML = '';
-        igThumbRow.classList.add('hidden');
-      }
-    }
-
-    function setIgImage(idx) {
-      currentIgIndex = idx;
-      renderIgCarousel();
-    }
-
-    function prevIgSlide() { if (currentIgIndex > 0) { currentIgIndex--; renderIgCarousel(); } }
-    function nextIgSlide() { if (currentIgIndex < currentEditingImages.length - 1) { currentIgIndex++; renderIgCarousel(); } }
-
-    function switchPreviewTab(p) {
-      if (p === 'fb') {
+    function switchPreviewTab(platform) {
+      if (platform === 'fb') {
         document.getElementById('preview-fb-box').classList.remove('hidden');
         document.getElementById('preview-ig-box').classList.add('hidden');
-        document.getElementById('preview-tab-fb').className = 'px-3 py-1 text-xs font-bold rounded-md bg-white text-blue-600 shadow-sm flex items-center space-x-1';
-        document.getElementById('preview-tab-ig').className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-600 flex items-center space-x-1';
+        document.getElementById('preview-tab-fb').className = "px-3 py-1 text-xs font-bold rounded-md bg-white text-blue-600 shadow-sm flex items-center space-x-1";
+        document.getElementById('preview-tab-ig').className = "px-3 py-1 text-xs font-bold rounded-md text-slate-600 flex items-center space-x-1";
       } else {
         document.getElementById('preview-fb-box').classList.add('hidden');
         document.getElementById('preview-ig-box').classList.remove('hidden');
-        document.getElementById('preview-tab-ig').className = 'px-3 py-1 text-xs font-bold rounded-md bg-white text-pink-600 shadow-sm flex items-center space-x-1';
-        document.getElementById('preview-tab-fb').className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-600 flex items-center space-x-1';
+        document.getElementById('preview-tab-ig').className = "px-3 py-1 text-xs font-bold rounded-md bg-white text-pink-600 shadow-sm flex items-center space-x-1";
+        document.getElementById('preview-tab-fb').className = "px-3 py-1 text-xs font-bold rounded-md text-slate-600 flex items-center space-x-1";
       }
     }
 
-    // 渲染內容庫
-    function renderLibraryTable() {
-      const body = document.getElementById('libraryTableBody');
-      body.innerHTML = '';
-      if (postsDB.length === 0) {
-        body.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-slate-400">尚無貼文資料</td></tr>';
+    function renderFbImagePreview() {
+      const mainContainer = document.getElementById('fbMainImageContainer');
+      const thumbRow = document.getElementById('fbThumbnailsRow');
+
+      if (currentEditingImages.length === 0) {
+        mainContainer.innerHTML = `<span class="text-slate-400 text-xs">（尚未上傳圖片）</span>`;
+        thumbRow.classList.add('hidden');
         return;
       }
+
+      mainContainer.innerHTML = `<img src="${currentEditingImages[currentFbImageIndex]}" class="max-h-[380px] w-auto object-contain">`;
+
+      if (currentEditingImages.length > 1) {
+        thumbRow.classList.remove('hidden');
+        thumbRow.innerHTML = '';
+        currentEditingImages.forEach((img, i) => {
+          const activeClass = (i === currentFbImageIndex) ? 'ring-2 ring-blue-500 border-white' : 'opacity-60 hover:opacity-100';
+          thumbRow.innerHTML += `<img src="${img}" onclick="setFbPreviewImage(${i})" class="w-12 h-12 object-cover rounded cursor-pointer ${activeClass}">`;
+        });
+      } else {
+        thumbRow.classList.add('hidden');
+      }
+    }
+
+    function setFbPreviewImage(i) {
+      currentFbImageIndex = i;
+      renderFbImagePreview();
+    }
+
+    function renderIgImagePreview() {
+      const container = document.getElementById('igImageContainer');
+      const prevBtn = document.getElementById('igPrevBtn');
+      const nextBtn = document.getElementById('igNextBtn');
+      const pageBadge = document.getElementById('igPageBadge');
+      const dotsContainer = document.getElementById('igDotsContainer');
+      const thumbRow = document.getElementById('igThumbnailsRow');
+
+      if (currentEditingImages.length === 0) {
+        container.innerHTML = `<span class="text-slate-400 text-xs">（尚未上傳圖片）</span>`;
+        prevBtn.classList.add('hidden'); nextBtn.classList.add('hidden');
+        pageBadge.classList.add('hidden'); thumbRow.classList.add('hidden');
+        dotsContainer.innerHTML = '';
+        return;
+      }
+
+      container.innerHTML = `<img src="${currentEditingImages[currentIgIndex]}" class="w-full h-full object-cover">`;
+
+      if (currentEditingImages.length > 1) {
+        prevBtn.classList.toggle('hidden', currentIgIndex === 0);
+        nextBtn.classList.toggle('hidden', currentIgIndex === currentEditingImages.length - 1);
+        pageBadge.classList.remove('hidden');
+        pageBadge.innerText = `${currentIgIndex + 1}/${currentEditingImages.length}`;
+
+        thumbRow.classList.remove('hidden');
+        thumbRow.innerHTML = '';
+        currentEditingImages.forEach((img, i) => {
+          const activeClass = (i === currentIgIndex) ? 'ring-2 ring-pink-500 border-white' : 'opacity-60 hover:opacity-100';
+          thumbRow.innerHTML += `<img src="${img}" onclick="setIgSlide(${i})" class="w-12 h-12 object-cover rounded cursor-pointer ${activeClass}">`;
+        });
+
+        dotsContainer.innerHTML = '';
+        currentEditingImages.forEach((_, i) => {
+          const dotColor = (i === currentIgIndex) ? 'bg-blue-500' : 'bg-slate-300';
+          dotsContainer.innerHTML += `<span class="w-1.5 h-1.5 rounded-full ${dotColor}"></span>`;
+        });
+      } else {
+        prevBtn.classList.add('hidden'); nextBtn.classList.add('hidden');
+        pageBadge.classList.add('hidden'); thumbRow.classList.add('hidden');
+        dotsContainer.innerHTML = '';
+      }
+    }
+
+    function prevIgSlide() { if (currentIgIndex > 0) { currentIgIndex--; renderIgImagePreview(); } }
+    function nextIgSlide() { if (currentIgIndex < currentEditingImages.length - 1) { currentIgIndex++; renderIgImagePreview(); } }
+    function setIgSlide(i) { currentIgIndex = i; renderIgImagePreview(); }
+
+    function updateBadges() {
+      const pendingCount = postsDB.filter(p => p.status === 'PENDING').length;
+      document.getElementById('reviewCountBadge').innerText = pendingCount;
+    }
+
+    function renderLibraryTable() {
+      const tbody = document.getElementById('libraryTableBody');
+      tbody.innerHTML = '';
+
+      if (postsDB.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400 text-sm">目前尚無任何貼文資料。</td></tr>`;
+        return;
+      }
+
       postsDB.forEach(p => {
-        const statusMap = {
-          DRAFT: '<span class="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-bold">草稿</span>',
-          PENDING: '<span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold">待審核</span>',
-          APPROVED: '<span class="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full font-bold">已核准</span>',
-          REJECTED: '<span class="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-full font-bold">退回修改</span>'
-        };
-        body.innerHTML += `
+        const statusBadge = {
+          DRAFT: `<span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full text-xs font-semibold">草稿</span>`,
+          PENDING: `<span class="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-xs font-semibold">待審核</span>`,
+          APPROVED: `<span class="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-semibold">已核准</span>`,
+          REJECTED: `<span class="bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full text-xs font-semibold">退回修改</span>`
+        }[p.status] || p.status;
+
+        tbody.innerHTML += `
           <tr class="hover:bg-slate-50">
             <td class="p-4 font-semibold text-slate-800">${p.internalTitle}</td>
-            <td class="p-4"><span class="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded border border-blue-200">${p.brands.join(', ')}</span></td>
-            <td class="p-4 text-xs font-bold">${p.platforms.join(', ')}</td>
-            <td class="p-4 text-slate-500">${p.scheduleDate} ${p.scheduleTime}</td>
-            <td class="p-4">${statusMap[p.status] || p.status}</td>
-            <td class="p-4 text-xs text-slate-500 max-w-xs truncate">${p.reviewComment || '-'}</td>
+            <td class="p-4 text-xs">${p.brands.join(', ')}</td>
+            <td class="p-4 text-xs font-medium">${p.platforms.join(', ')}</td>
+            <td class="p-4 text-xs text-slate-500">${p.scheduleDate} ${p.scheduleTime}</td>
+            <td class="p-4">${statusBadge}</td>
+            <td class="p-4 text-xs text-slate-500">${p.reviewComment || '-'}</td>
             <td class="p-4 text-right space-x-2">
-              <button onclick="editPost('${p.id}')" class="text-blue-600 hover:underline text-xs font-semibold">編輯</button>
-              <button onclick="deletePost('${p.id}')" class="text-red-500 hover:underline text-xs font-semibold">刪除</button>
+              <button onclick="editPost('${p.id}')" class="text-blue-600 hover:text-blue-800 font-medium text-xs">編輯</button>
+              <button onclick="deletePost('${p.id}')" class="text-red-500 hover:text-red-700 font-medium text-xs">刪除</button>
             </td>
           </tr>
         `;
       });
+      lucide.createIcons();
     }
 
-    // 主管審核列表
     function renderReviewList() {
-      const box = document.getElementById('reviewListContainer');
-      box.innerHTML = '';
+      const container = document.getElementById('reviewListContainer');
+      container.innerHTML = '';
+
       const pendingPosts = postsDB.filter(p => p.status === 'PENDING');
+
       if (pendingPosts.length === 0) {
-        box.innerHTML = '<div class="bg-white p-8 text-center text-slate-400 rounded-xl border">目前沒有等待審核的貼文</div>';
+        container.innerHTML = `<div class="bg-white p-8 rounded-xl border text-center text-slate-400">目前沒有需要審核的貼文！</div>`;
         return;
       }
+
       pendingPosts.forEach(p => {
-        box.innerHTML += `
-          <div class="bg-white p-6 rounded-xl border shadow-sm space-y-4">
-            <div class="flex justify-between items-start border-b pb-4">
+        container.innerHTML += `
+          <div class="bg-white p-5 rounded-xl border shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b pb-3">
               <div>
-                <span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold">待審核</span>
-                <h3 class="text-lg font-bold text-slate-800 mt-2">${p.internalTitle}</h3>
-                <p class="text-xs text-slate-400 mt-0.5">預定時間：${p.scheduleDate} ${p.scheduleTime}</p>
+                <h3 class="font-bold text-slate-800 text-lg">${p.internalTitle}</h3>
+                <div class="flex items-center space-x-3 text-xs text-slate-500 mt-1">
+                  <span>品牌：${p.brands.join(', ')}</span>
+                  <span>平台：${p.platforms.join(', ')}</span>
+                  <span>預定時間：${p.scheduleDate} ${p.scheduleTime}</span>
+                </div>
               </div>
               <div class="flex items-center space-x-2">
-                <button onclick="openReviewModal('${p.id}', 'REJECTED')" class="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-semibold">退回</button>
-                <button onclick="openReviewModal('${p.id}', 'APPROVED')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold">審核通過</button>
+                <button onclick="openReviewModal('${p.id}', 'REJECTED')" class="px-3.5 py-1.5 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-xs font-bold">退回修改</button>
+                <button onclick="openReviewModal('${p.id}', 'APPROVED')" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold">核准通過</button>
               </div>
             </div>
-            <p class="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-lg">${p.fbCaption || p.igCaption}</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg text-xs">
+              <div>
+                <span class="font-bold text-slate-700 block mb-1">FB 文案預覽：</span>
+                <p class="whitespace-pre-wrap text-slate-600">${p.fbCaption || '無'}</p>
+              </div>
+              <div>
+                <span class="font-bold text-slate-700 block mb-1">IG 文案預覽：</span>
+                <p class="whitespace-pre-wrap text-slate-600">${p.igCaption || '無'}</p>
+              </div>
+            </div>
+
+            ${p.images.length > 0 ? `
+              <div class="flex items-center space-x-2 overflow-x-auto py-1">
+                ${p.images.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded-lg border">`).join('')}
+              </div>
+            ` : ''}
           </div>
         `;
       });
+      lucide.createIcons();
     }
 
-    // 審核 Modal 控制
-    function openReviewModal(id, st) {
+    function openReviewModal(id, status) {
       pendingReviewPostId = id;
-      pendingReviewStatus = st;
-      document.getElementById('modalTitle').innerText = st === 'APPROVED' ? '核准貼文發布' : '退回貼文修改';
-      document.getElementById('modalSubtitle').innerText = st === 'APPROVED' ? '確定要核准此貼文嗎？核准後將會排入月曆排程：' : '請填寫退回給專員的修改建議（選填）：';
+      pendingReviewStatus = status;
+      document.getElementById('modalTitle').innerText = status === 'APPROVED' ? '核准貼文' : '退回貼文修改';
       document.getElementById('reviewCommentInput').value = '';
       document.getElementById('reviewModal').classList.remove('hidden');
     }
@@ -846,79 +886,87 @@
     }
 
     function submitReviewAction() {
-      const p = postsDB.find(x => x.id === pendingReviewPostId);
-      if (p) {
-        p.status = pendingReviewStatus;
-        p.reviewComment = document.getElementById('reviewCommentInput').value.trim();
-        closeReviewModal();
-        renderReviewList();
-        renderCalendar(); // 狀態改變後同步更新月曆
-        updateBadges();
-        alert(pendingReviewStatus === 'APPROVED' ? '已通過審核！貼文已正式排入月曆。' : '已退回貼文。');
+      if (!pendingReviewPostId) return;
+
+      const comment = document.getElementById('reviewCommentInput').value;
+      const idx = postsDB.findIndex(p => p.id === pendingReviewPostId);
+      if (idx >= 0) {
+        postsDB[idx].status = pendingReviewStatus;
+        postsDB[idx].reviewComment = comment;
+        savePostsToStorageAndNotify();
       }
+
+      closeReviewModal();
+      refreshAllViews();
     }
 
-    // 關鍵修復：月曆渲染（僅限已核准 APPROVED 貼文）
     function renderCalendar() {
-      currentYear = parseInt(document.getElementById('calendarYearSelect').value);
-      currentMonth = parseInt(document.getElementById('calendarMonthSelect').value);
-      document.getElementById('calendarMonthTitle').innerText = `${currentYear} 年 ${currentMonth + 1} 月`;
-
       const grid = document.getElementById('calendarGrid');
       grid.innerHTML = '';
 
-      const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const year = parseInt(document.getElementById('calendarYearSelect').value);
+      const month = parseInt(document.getElementById('calendarMonthSelect').value);
+      
+      const monthNames = ["1 月", "2 月", "3 月", "4 月", "5 月", "6 月", "7 月", "8 月", "9 月", "10 月", "11 月", "12 月"];
+      document.getElementById('calendarMonthTitle').innerText = `${year} 年 ${monthNames[month]}`;
 
+      const firstDay = new Date(year, month, 1).getDay();
+      const totalDays = new Date(year, month + 1, 0).getDate();
+
+      // 空白日
       for (let i = 0; i < firstDay; i++) {
-        grid.innerHTML += `<div class="h-28 border border-slate-100 bg-slate-50/50 rounded"></div>`;
+        grid.innerHTML += `<div class="min-h-[100px] bg-slate-50/50 rounded-lg border border-dashed border-slate-200"></div>`;
       }
 
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        
-        // ✨ Bug 核心修復點：只篩選出「日期相符」而且「主管已核准 (APPROVED)」的貼文
-        const dayPosts = postsDB.filter(p => p.scheduleDate === dateStr && p.status === 'APPROVED');
+      // 當月日期
+      for (let day = 1; day <= totalDays; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayPosts = postsDB.filter(p => p.scheduleDate === dateStr);
 
         let postsHTML = '';
         dayPosts.forEach(p => {
+          const colorClass = p.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300';
           postsHTML += `
-            <div onclick="editPost('${p.id}'); event.stopPropagation();" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 p-1 rounded text-[10px] mt-1 font-semibold truncate cursor-pointer flex items-center justify-between">
-              <span class="truncate">${p.scheduleTime} ${p.internalTitle}</span>
-              <span class="bg-emerald-600 text-white text-[8px] px-1 rounded-sm ml-0.5 flex-shrink-0">已核准</span>
+            <div onclick="editPost('${p.id}')" class="p-1.5 text-[11px] rounded border ${colorClass} cursor-pointer truncate hover:shadow-sm" title="${p.internalTitle}">
+              <span class="font-bold">${p.scheduleTime}</span> ${p.internalTitle}
             </div>
           `;
         });
 
         grid.innerHTML += `
-          <div onclick="startNewPost('${dateStr}')" class="h-28 border border-slate-200 bg-white p-1.5 rounded text-left hover:border-blue-400 cursor-pointer transition-colors overflow-y-auto custom-scrollbar">
-            <span class="text-xs font-bold text-slate-700">${day}</span>
-            ${postsHTML}
+          <div class="min-h-[100px] p-2 bg-white rounded-lg border flex flex-col justify-between hover:border-blue-300 transition-colors">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-slate-700">${day}</span>
+              <button onclick="startNewPost('${dateStr}')" class="text-slate-400 hover:text-blue-600"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
+            </div>
+            <div class="space-y-1 flex-1 overflow-y-auto max-h-[80px]">
+              ${postsHTML}
+            </div>
           </div>
         `;
       }
+      lucide.createIcons();
     }
 
-    function changeMonth(delta) {
-      let m = currentMonth + delta;
-      let y = currentYear;
+    function changeMonth(offset) {
+      let mSelect = document.getElementById('calendarMonthSelect');
+      let ySelect = document.getElementById('calendarYearSelect');
+      let m = parseInt(mSelect.value) + offset;
+      let y = parseInt(ySelect.value);
+
       if (m < 0) { m = 11; y--; }
       if (m > 11) { m = 0; y++; }
-      document.getElementById('calendarYearSelect').value = y;
-      document.getElementById('calendarMonthSelect').value = m;
+
+      mSelect.value = m;
+      ySelect.value = y;
       renderCalendar();
     }
 
-    function updateBadges() {
-      const pendingCount = postsDB.filter(p => p.status === 'PENDING').length;
-      document.getElementById('reviewCountBadge').innerText = pendingCount;
-    }
-
-    // 初始化
-    renderImageList();
-    updatePreviews();
-    updateBadges();
+    // 初始化頁面
+    window.onload = function() {
+      refreshAllViews();
+      updatePreviews();
+    };
   </script>
-
 </body>
 </html>
